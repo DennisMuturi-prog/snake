@@ -1,16 +1,17 @@
+use avian2d::prelude::*;
 use bevy::prelude::*;
 
 #[derive(Component)]
-pub struct Joint;
+pub struct Joint(pub usize);
 
-pub type JointFilter=(With<Joint>,Without<LimbSegment>);
+pub type JointFilter = (With<Joint>, Without<LimbSegment>);
 
-pub type LimbFilter=(With<LimbSegment>,Without<Joint>);
+pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
 
-const SNAKE_PART_LENGTH:f32=50.0;
+const SNAKE_PART_LENGTH: f32 = 10.0;
 
 #[derive(Component)]
-pub struct LimbSegment;
+pub struct LimbSegment(pub usize);
 
 #[derive(Component)]
 pub struct HeadOfSnake;
@@ -68,15 +69,20 @@ impl Limb {
         let first_position = self.segments[0].position;
         let line_sprite = Sprite {
             color: Color::srgb(0.2, 0.7, 0.9),
-            custom_size: Some(Vec2 { x: SNAKE_PART_LENGTH, y: 5.0 }),
+            custom_size: Some(Vec2 {
+                x: SNAKE_PART_LENGTH,
+                y: 5.0,
+            }),
             ..default()
         };
+
+        let second_last_index = self.segments.len() - 2;
 
         commands.spawn((
             Mesh2d(circle_mesh.clone()),
             MeshMaterial2d(circle_material.clone()),
             Transform::from_xyz(first_position.x, first_position.y, 0.0),
-            Joint,
+            Joint(0),
         ));
 
         for i in 0..self.segments.len() - 1 {
@@ -86,7 +92,7 @@ impl Limb {
             let direction = start_point - end_point;
             let angle = direction.y.atan2(direction.x);
             let midpoint = (start_point + end_point) / 2.0;
-            if i == 0 {
+            if i == second_last_index {
                 commands.spawn((
                     line_sprite.clone(),
                     Transform {
@@ -94,8 +100,11 @@ impl Limb {
                         rotation: Quat::from_rotation_z(angle),
                         ..default()
                     },
-                    LimbSegment,
+                    LimbSegment(i),
                     HeadOfSnake,
+                    RigidBody::Kinematic,
+                    Collider::rectangle(SNAKE_PART_LENGTH, 5.0),
+                    CollisionEventsEnabled,
                 ));
             } else {
                 commands.spawn((
@@ -105,7 +114,7 @@ impl Limb {
                         rotation: Quat::from_rotation_z(angle),
                         ..default()
                     },
-                    LimbSegment,
+                    LimbSegment(i),
                 ));
             }
 
@@ -113,29 +122,36 @@ impl Limb {
                 Mesh2d(circle_mesh.clone()),
                 MeshMaterial2d(circle_material.clone()),
                 Transform::from_xyz(end_point.x, end_point.y, 0.0),
-                Joint,
+                Joint(i + 1),
             ));
         }
     }
     pub fn update_visuals(
         &self,
-        mut joint_query: Query<
-            &mut Transform,
-            JointFilter>, 
-        mut limb_query: Query<&mut Transform,LimbFilter>,
+        mut joint_query: Query<(&mut Transform, &Joint), JointFilter>,
+        mut limb_query: Query<(&mut Transform, &LimbSegment), LimbFilter>,
     ) {
-        for (i,mut transform) in joint_query.iter_mut().enumerate() {
-            let position = self.segments[i].position;
-            transform.translation = position.extend(0.0);
+        for (mut transform, joint) in joint_query.iter_mut() {
+            if let Some(segment) = self.segments.get(joint.0) {
+                transform.translation = segment.position.extend(0.0);
+            }
         }
 
-        for (i, mut transform) in limb_query.iter_mut().enumerate() {
+        for (mut transform, limb_segment) in limb_query.iter_mut() {
+            let i = limb_segment.0;
             let start_point = self.segments[i].position;
             let end_point = self.segments[i + 1].position;
 
             let direction = start_point - end_point;
+
+            // Safety check to avoid degenerate colliders
+            if direction.length() < 0.1 {
+                continue;
+            }
+
             let angle = direction.y.atan2(direction.x);
             let midpoint = (start_point + end_point) / 2.0;
+
             transform.translation = midpoint.extend(0.0);
             transform.rotation = Quat::from_rotation_z(angle);
         }
@@ -157,17 +173,27 @@ impl Limb {
             let current_length = self.segments[i].length();
 
             let mut direction = next_pos - current_pos;
-            direction = direction.normalize() * current_length;
+            direction = direction.normalize_or_zero() * current_length;
 
             self.segments[i].set_position(next_pos - direction);
         }
     }
-    pub fn get_last_segment_position(&self)->Vec2{
-        let last_index=self.segments.len()-1;
+    pub fn get_last_segment_position(&self) -> Vec2 {
+        let last_index = self.segments.len() - 1;
         self.segments[last_index].position
     }
 
     pub fn set_target(&mut self, target: Vec2) {
         self.target = target;
+    }
+
+    pub fn add_snake_part(&mut self) {
+        let last_index = self.segments.len() - 1;
+        let start_point = self.segments[last_index - 1].position;
+        let end_point = self.segments[last_index].position;
+        let direction = start_point - end_point;
+        let new_point = end_point + direction;
+        self.segments
+            .push(Segment::new(new_point, SNAKE_PART_LENGTH));
     }
 }
