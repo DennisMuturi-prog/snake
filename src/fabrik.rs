@@ -10,9 +10,9 @@ pub type JointFilter = (With<Joint>, Without<LimbSegment>);
 
 pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
 
-const SNAKE_PART_LENGTH: f32 = 50.0;
+const SNAKE_PART_LENGTH: f32 = 20.0;
 
-const SNAKE_PART_THICKNESS: f32 = 15.0;
+const SNAKE_PART_THICKNESS: f32 = 5.0;
 
 #[derive(Component)]
 pub struct LimbSegment(pub usize);
@@ -230,12 +230,14 @@ impl Limb {
                 LimbSegment(i),
             ));
 
-            commands.spawn((
-                Mesh2d(circle_mesh.clone()),
-                MeshMaterial2d(circle_material.clone()),
-                Transform::from_xyz(end_point.x, end_point.y, 0.0),
-                Joint(i + 1),
-            ));
+            if i < no_of_parts - 1 {
+                commands.spawn((
+                    Mesh2d(circle_mesh.clone()),
+                    MeshMaterial2d(circle_material.clone()),
+                    Transform::from_xyz(end_point.x, end_point.y, 0.0),
+                    Joint(i + 1),
+                ));
+            }
         }
     }
 

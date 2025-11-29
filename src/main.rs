@@ -7,7 +7,7 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             PhysicsPlugins::default(),
-            PhysicsDebugPlugin,
+            // PhysicsDebugPlugin,
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, follow_mouse)
