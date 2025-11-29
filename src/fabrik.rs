@@ -144,11 +144,6 @@ impl Limb {
 
             let direction = start_point - end_point;
 
-            // Safety check to avoid degenerate colliders
-            if direction.length() < 0.1 {
-                continue;
-            }
-
             let angle = direction.y.atan2(direction.x);
             let midpoint = (start_point + end_point) / 2.0;
 
