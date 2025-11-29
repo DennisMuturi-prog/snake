@@ -1,9 +1,8 @@
-use avian2d::{
-    math::{PI, Vector},
-    prelude::*,
-};
+use avian2d::
+    prelude::*
+;
 use bevy::{prelude::*, window::PrimaryWindow};
-use snake::fabrik::{Joint, Limb, LimbSegment};
+use snake::fabrik::{JointFilter, Limb, LimbFilter};
 fn main() {
     App::new()
         .add_plugins((
@@ -13,14 +12,19 @@ fn main() {
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, follow_mouse)
+        .add_systems(Update, move_snake)
         .run();
 }
 
-#[derive(Component)]
-struct FirstSquare;
-
-#[derive(Resource,Deref,DerefMut)]
+#[derive(Resource, Deref, DerefMut)]
 struct LimbResource(Limb);
+
+#[derive(Resource, Deref, DerefMut)]
+struct SnakeVelocity(Vec2);
+
+const SNAKE_SPEED:f32=10.0;
+
+const NO_OF_SNAKE_PARTS:usize=8;
 
 fn setup(
     mut commands: Commands,
@@ -32,70 +36,64 @@ fn setup(
     let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
     let material = materials.add(color);
     commands.spawn(Camera2d);
-    let limb = Limb::new(Vec2 { x: 200.0, y: 200.0 }, 8, Vec2 { x: 0.0, y: 0.0 });
+    let limb = Limb::new(Vec2 { x: 200.0, y: 200.0 }, NO_OF_SNAKE_PARTS, Vec2 { x: 0.0, y: 0.0 });
 
     limb.display(&mut commands, mesh, material);
 
     commands.insert_resource(LimbResource(limb));
+
+    commands.insert_resource(SnakeVelocity(Vec2 { x: 0.0, y: SNAKE_SPEED-5.0}));
+
+
+    let apple_shape = Circle::new(10.0);
+    let apple_mesh = meshes.add(shape);
+    let apple_color = Color::Srgba(Srgba::rgb(0.0, 0.647, 0.0));
+
+    let apple_material = materials.add(color);
+    commands.spawn((
+            Mesh2d(apple_mesh),
+            MeshMaterial2d(apple_material),
+            Transform::from_xyz(20.0, 50.0, 0.0),
+        ));
 }
 
-fn setup_2(mut commands: Commands) {
-    commands.spawn(Camera2d);
 
-    let square_sprite = Sprite {
-        color: Color::srgb(0.2, 0.7, 0.9),
-        custom_size: Some(Vec2 { x: 10.0, y: 50.0 }),
-        ..default()
-    };
 
-    let square_sprite_2 = Sprite {
-        color: Color::srgb(0.9, 0.7, 0.9),
-        custom_size: Some(Vec2::splat(50.0)),
-        ..default()
-    };
 
-    let anchor = commands
-        .spawn((
-            square_sprite.clone(),
-            RigidBody::Kinematic,
-            FirstSquare, // AngularVelocity(1.5),
-        ))
-        .id();
 
-    let object = commands
-        .spawn((
-            square_sprite_2,
-            Transform::from_xyz(0.0, -100.0, 0.0),
-            RigidBody::Dynamic,
-            MassPropertiesBundle::from_shape(&Rectangle::from_length(50.0), 1.0),
-        ))
-        .id();
-
-    commands.spawn(
-        RevoluteJoint::new(anchor, object), // .with_local_anchor1(Vec2 { x: 5.0, y: 0.0 })
-                                            // .with_local_anchor2(Vec2 { x: -25., y: 0.0 }), // .with_local_basis1(PI / 2.0)
-    );
-}
-
-fn rotate_by_degrees_2(
-    mut square: Single<&mut Transform, With<FirstSquare>>,
+fn move_snake(
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    joint_query: Query<&mut Transform, JointFilter>,
+    limb_query: Query<&mut Transform, LimbFilter>,
+    mut limb_resource: ResMut<LimbResource>,
+    mut snake_velocity: ResMut<SnakeVelocity>,
 ) {
     if keyboard_input.pressed(KeyCode::ArrowLeft) {
-        square.rotate_z(PI / 2.0);
+        snake_velocity.0 = Vec2 { x: -SNAKE_SPEED, y: 0.0 };
+    }
+    if keyboard_input.pressed(KeyCode::ArrowRight) {
+        snake_velocity.0 = Vec2 { x: SNAKE_SPEED, y: 0.0 };
     }
 
     if keyboard_input.pressed(KeyCode::ArrowUp) {
-        square.translation.x += 5.0;
+        snake_velocity.0 = Vec2 { x: 0.0, y: SNAKE_SPEED };
     }
+
+    if keyboard_input.pressed(KeyCode::ArrowDown) {
+        snake_velocity.0 = Vec2 { x: 0.0, y: -SNAKE_SPEED };
+    }    
+    let target = limb_resource.get_last_segment_position()+snake_velocity.0;
+    limb_resource.set_target(target);
+    limb_resource.forward_fabrik();
+    limb_resource.update_visuals(joint_query, limb_query);
 }
 fn follow_mouse(
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     camera: Query<(&Camera, &GlobalTransform)>,
-    joint_query: Query<(&mut Transform, &Joint),Without<LimbSegment>>,
-    limb_query: Query<&mut Transform, With<LimbSegment>>,
-    mut limb_resource:ResMut<LimbResource>
+    joint_query: Query<&mut Transform, JointFilter>,
+    limb_query: Query<&mut Transform, LimbFilter>,
+    mut limb_resource: ResMut<LimbResource>,
 ) -> Result {
     if buttons.pressed(MouseButton::Left) {
         let window = windows.single()?;
@@ -109,8 +107,6 @@ fn follow_mouse(
 
             limb_resource.forward_fabrik();
             limb_resource.update_visuals(joint_query, limb_query);
-
-            
         }
     }
 
