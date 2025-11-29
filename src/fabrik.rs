@@ -12,6 +12,8 @@ pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
 
 const SNAKE_PART_LENGTH: f32 = 15.0;
 
+const SNAKE_PART_THICKNESS: f32 = 15.0;
+
 #[derive(Component)]
 pub struct LimbSegment(pub usize);
 
@@ -73,7 +75,7 @@ impl Limb {
             color: Color::srgb(0.2, 0.7, 0.9),
             custom_size: Some(Vec2 {
                 x: SNAKE_PART_LENGTH,
-                y: 5.0,
+                y: SNAKE_PART_THICKNESS,
             }),
             ..default()
         };
@@ -105,7 +107,7 @@ impl Limb {
                     LimbSegment(i),
                     HeadOfSnake,
                     RigidBody::Kinematic,
-                    Collider::rectangle(SNAKE_PART_LENGTH, 5.0),
+                    Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
                     CollisionEventsEnabled,
                 ));
             } else {
@@ -194,7 +196,7 @@ impl Limb {
             color: Color::srgb(0.2, 0.7, 0.9),
             custom_size: Some(Vec2 {
                 x: SNAKE_PART_LENGTH,
-                y: 5.0,
+                y: SNAKE_PART_THICKNESS,
             }),
             ..default()
         };
