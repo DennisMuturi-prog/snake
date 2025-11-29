@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
@@ -8,7 +10,7 @@ pub type JointFilter = (With<Joint>, Without<LimbSegment>);
 
 pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
 
-const SNAKE_PART_LENGTH: f32 = 10.0;
+const SNAKE_PART_LENGTH: f32 = 15.0;
 
 #[derive(Component)]
 pub struct LimbSegment(pub usize);
@@ -39,17 +41,17 @@ impl Segment {
 }
 
 pub struct Limb {
-    segments: Vec<Segment>,
+    segments: VecDeque<Segment>,
     target: Vec2,
 }
 
 impl Limb {
     pub fn new(target: Vec2, no_of_segments: usize, starting_position: Vec2) -> Self {
-        let mut segments = Vec::<Segment>::new();
+        let mut segments = VecDeque::<Segment>::new();
         let mut sum = 0.0;
 
         for _ in 0..no_of_segments {
-            segments.push(Segment::new(
+            segments.push_back(Segment::new(
                 Vec2 {
                     x: starting_position.x,
                     y: starting_position.y + sum,
@@ -181,14 +183,66 @@ impl Limb {
     pub fn set_target(&mut self, target: Vec2) {
         self.target = target;
     }
+    pub fn add_multiple_snake_parts(
+        &mut self,
+        no_of_parts: usize,
+        commands: &mut Commands,
+        circle_mesh: Handle<Mesh>,
+        circle_material: Handle<ColorMaterial>,
+    ) {
+        let line_sprite = Sprite {
+            color: Color::srgb(0.2, 0.7, 0.9),
+            custom_size: Some(Vec2 {
+                x: SNAKE_PART_LENGTH,
+                y: 5.0,
+            }),
+            ..default()
+        };
+
+        for _ in 0..no_of_parts {
+            self.add_snake_part();
+        }
+        let first_position = self.segments[0].position;
+        commands.spawn((
+            Mesh2d(circle_mesh.clone()),
+            MeshMaterial2d(circle_material.clone()),
+            Transform::from_xyz(first_position.x, first_position.y, 0.0),
+            Joint(0),
+        ));
+
+        for i in 0..no_of_parts {
+            let start_point = self.segments[i].position;
+            let end_point = self.segments[i + 1].position;
+
+            let direction = start_point - end_point;
+            let angle = direction.y.atan2(direction.x);
+            let midpoint = (start_point + end_point) / 2.0;
+
+            commands.spawn((
+                line_sprite.clone(),
+                Transform {
+                    translation: midpoint.extend(0.0),
+                    rotation: Quat::from_rotation_z(angle),
+                    ..default()
+                },
+                LimbSegment(i),
+            ));
+
+            commands.spawn((
+                Mesh2d(circle_mesh.clone()),
+                MeshMaterial2d(circle_material.clone()),
+                Transform::from_xyz(end_point.x, end_point.y, 0.0),
+                Joint(i + 1),
+            ));
+        }
+    }
 
     pub fn add_snake_part(&mut self) {
-        let last_index = self.segments.len() - 1;
-        let start_point = self.segments[last_index - 1].position;
-        let end_point = self.segments[last_index].position;
+        let start_point = self.segments[0].position;
+        let end_point = self.segments[1].position;
         let direction = start_point - end_point;
-        let new_point = end_point + direction;
+        let new_point = start_point + direction;
         self.segments
-            .push(Segment::new(new_point, SNAKE_PART_LENGTH));
+            .push_front(Segment::new(new_point, SNAKE_PART_LENGTH));
     }
 }

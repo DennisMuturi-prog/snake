@@ -19,6 +19,13 @@ fn main() {
 #[derive(Resource, Deref, DerefMut)]
 struct LimbResource(Limb);
 
+#[derive(Resource)]
+struct CircleMeshAndMaterial{
+    mesh:Handle<Mesh>,
+    material:Handle<ColorMaterial>
+}
+
+
 #[derive(Resource, Deref, DerefMut)]
 struct SnakeVelocity(Vec2);
 
@@ -27,7 +34,7 @@ pub struct Apple;
 
 const SNAKE_SPEED: f32 = 10.0;
 
-const NO_OF_SNAKE_PARTS: usize = 20;
+const NO_OF_SNAKE_PARTS: usize = 10;
 
 fn setup(
     mut commands: Commands,
@@ -38,6 +45,10 @@ fn setup(
     let mesh = meshes.add(shape);
     let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
     let material = materials.add(color);
+    commands.insert_resource(CircleMeshAndMaterial{
+        mesh:mesh.clone(),
+        material:material.clone()
+    });
     commands.spawn(Camera2d);
     let limb = Limb::new(
         Vec2 { x: 200.0, y: 200.0 },
@@ -140,8 +151,23 @@ fn follow_mouse(
 fn detect_collision_with_apple(
     mut collision_reader: MessageReader<CollisionEnd>,
     mut apple: Single<&mut Transform, With<Apple>>,
+    mut joints_query:Query<&mut Joint>,
+    mut limb_query:Query<&mut LimbSegment>,
+    mut limb_resource: ResMut<LimbResource>,
+    mut commands: Commands,
+    circle_mesh_and_material:Res<CircleMeshAndMaterial>
 ) {
+    let no_of_snake_parts_to_add=10;
     for event in collision_reader.read() {
+        for mut joint in joints_query.iter_mut(){
+            joint.0+=no_of_snake_parts_to_add;
+
+        }
+        for mut limb in limb_query.iter_mut(){
+            limb.0+=no_of_snake_parts_to_add;
+        }
+        limb_resource.add_multiple_snake_parts(no_of_snake_parts_to_add, &mut commands, circle_mesh_and_material.mesh.clone(), circle_mesh_and_material.material.clone());
+
         let mut rng = rand::rng();
         let x: f32 = rng.random_range(-300.0..=300.0);
         let y: f32 = rng.random_range(-300.0..=300.0);
