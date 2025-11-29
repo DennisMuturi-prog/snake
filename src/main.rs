@@ -53,7 +53,7 @@ fn setup(
     let limb = Limb::new(
         Vec2 { x: 200.0, y: 200.0 },
         NO_OF_SNAKE_PARTS,
-        Vec2 { x: 200.0, y: -20.0 },
+        Vec2 { x: 200.0, y: -200.0 },
     );
 
     limb.display(&mut commands, mesh, material);
