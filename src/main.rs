@@ -1,5 +1,5 @@
 use avian2d::prelude::*;
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{app::Animation, prelude::*, window::PrimaryWindow};
 use rand::Rng;
 use snake::fabrik::{Joint, JointFilter, Limb, LimbFilter, LimbSegment};
 fn main() {
@@ -10,9 +10,11 @@ fn main() {
             // PhysicsDebugPlugin,
         ))
         .add_systems(Startup, setup)
+        .add_systems(Startup, draw_snake_head)
         .add_systems(Update, follow_mouse)
         .add_systems(Update, move_snake)
         .add_systems(Update, detect_collision_with_apple)
+        .add_systems(Update, execute_animations)
         .run();
 }
 
@@ -32,9 +34,86 @@ struct SnakeVelocity(Vec2);
 #[derive(Component)]
 pub struct Apple;
 
+
+#[derive(Component)]
+struct AnimationTimer{
+    frame_count:usize,
+    timer:Timer
+
+}
+
 const SNAKE_SPEED: f32 = 10.0;
 
 const NO_OF_SNAKE_PARTS: usize = 10;
+
+fn draw_snake_head(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+){
+    let shape = Rectangle::new(10.0,5.0);
+    let mesh = meshes.add(shape);
+    let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
+    let material = materials.add(color);
+
+    commands.spawn((
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
+        Transform::from_xyz(20.0, -50.0, 0.0),
+        // RigidBody::Kinematic,
+        // Collider::circle(15.0),
+        // Sensor,
+        // Apple,
+    ));
+
+    let texture = asset_server.load("sprites/snake_mouth_sprite.png");
+
+    let layout = TextureAtlasLayout::from_grid(
+        UVec2{
+        x:33,
+        y:53
+    }, 15, 1, Some(UVec2{
+        x:3,
+        y:0
+    }), None);
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    commands.spawn((
+        Sprite {
+            image: texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(2.0)).with_translation(Vec3::new(-70.0, 0.0, 0.0)),
+        AnimationTimer{
+            frame_count:15,
+            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
+        }
+    ));
+
+}
+
+
+fn execute_animations(time: Res<Time>, mut query: Query<( &mut AnimationTimer,&mut Sprite)>) {
+
+    for (mut config, mut sprite) in &mut query {
+        config.timer.tick(time.delta());
+        if config.timer.just_finished()
+            && let Some(atlas) = &mut sprite.texture_atlas
+        {
+            atlas.index+=1;
+            if atlas.index == config.frame_count{
+                atlas.index=0;
+            }
+        }
+    }
+
+
+}
 
 fn setup(
     mut commands: Commands,
@@ -65,7 +144,7 @@ fn setup(
         y: SNAKE_SPEED - 10.0,
     }));
 
-    let apple_shape = Circle::new(10.0);
+    let apple_shape = Circle::new(15.0);
     let apple_mesh = meshes.add(apple_shape);
     let apple_color = Color::Srgba(Srgba::rgb(0.0, 0.647, 0.0));
 
