@@ -1,18 +1,28 @@
+use std::time::Duration;
+
 use avian2d::prelude::*;
 use bevy::{prelude::*, window::PrimaryWindow};
 use rand::Rng;
-use snake::fabrik::{Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH};
+use snake::fabrik::{
+    Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS,
+};
 fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
             PhysicsPlugins::default(),
-            // PhysicsDebugPlugin,
+            PhysicsDebugPlugin,
         ))
-        .add_systems(Startup, (setup,draw_snake_head).chain())
+        .add_systems(Startup, (setup, draw_snake_head).chain())
         .add_systems(Update, follow_mouse)
         .add_systems(Update, move_snake)
-        .add_systems(Update, detect_collision_with_apple)
+        .add_systems(
+            Update,
+            (
+                detect_start_collision_with_apple,
+                detect_collision_with_apple,
+            ),
+        )
         .add_systems(Update, execute_animations)
         .run();
 }
@@ -33,9 +43,26 @@ struct SnakeVelocity(Vec2);
 pub struct Apple;
 
 #[derive(Component)]
+pub struct AppleField;
+
+#[derive(Component)]
+pub struct Mouth;
+
+#[derive(Component)]
 struct AnimationTimer {
     frame_count: usize,
     timer: Timer,
+}
+impl AnimationTimer {
+    fn new(frame_count: usize) -> Self {
+        Self {
+            frame_count,
+            timer: AnimationTimer::timer_from_fps(frame_count as u8),
+        }
+    }
+    fn timer_from_fps(fps: u8) -> Timer {
+        Timer::new(Duration::from_secs_f32(1.0 / (fps as f32)), TimerMode::Once)
+    }
 }
 
 const SNAKE_SPEED: f32 = 10.0;
@@ -71,10 +98,8 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-10.0, 0.0, 0.0)),
-        AnimationTimer {
-            frame_count: 15,
-            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
-        },
+        AnimationTimer::new(15),
+        Mouth,
     );
     // commands.spawn(mouth_bundle);
 
@@ -99,10 +124,7 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-35.0, 0.0, 0.0)),
-        AnimationTimer {
-            frame_count: 21,
-            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
-        },
+        AnimationTimer::new(21),
     );
     // commands.spawn(tounge_bundle);
 
@@ -127,10 +149,7 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 0.0)),
-        AnimationTimer {
-            frame_count: 9,
-            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
-        },
+        AnimationTimer::new(9),
     );
 
     let eye_bundle2 = (
@@ -144,10 +163,7 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 0.0)),
-        AnimationTimer {
-            frame_count: 9,
-            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
-        },
+        AnimationTimer::new(9),
     );
     // commands.spawn(eye_bundle);
 
@@ -171,18 +187,14 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-200.0, 0.0, 0.0)),
-        AnimationTimer {
-            frame_count: 36,
-            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
-        },
+        AnimationTimer::new(36),
     );
     commands.spawn(hit_bundle);
-
-    let shape = Rectangle::new(SNAKE_HEAD_LENGTH, 50.0);
+    let shape = Rectangle::new(SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS);
     let mesh = meshes.add(shape);
     let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
     let material = materials.add(color);
-    let snake_bundle=(
+    let snake_bundle = (
         Mesh2d(mesh),
         MeshMaterial2d(material),
         children![tounge_bundle, mouth_bundle, eye_bundle1, eye_bundle2,],
@@ -192,7 +204,7 @@ fn draw_snake_head(
         &mut commands,
         circle_mesh_and_material.mesh.clone(),
         circle_mesh_and_material.material.clone(),
-       snake_bundle
+        snake_bundle,
     );
 }
 
@@ -202,9 +214,14 @@ fn execute_animations(time: Res<Time>, mut query: Query<(&mut AnimationTimer, &m
         if config.timer.just_finished()
             && let Some(atlas) = &mut sprite.texture_atlas
         {
-            atlas.index += 1;
-            if atlas.index == config.frame_count {
+            if atlas.index == config.frame_count - 1 {
+                // ...and it IS the last frame, then we move back to the first frame and stop.
                 atlas.index = 0;
+            } else {
+                // ...and it is NOT the last frame, then we move to the next frame...
+                atlas.index += 1;
+                // ...and reset the frame timer to start counting all over again
+                config.timer = AnimationTimer::timer_from_fps(config.frame_count as u8);
             }
         }
     }
@@ -252,6 +269,13 @@ fn setup(
         Collider::circle(15.0),
         Sensor,
         Apple,
+    ));
+
+    commands.spawn((
+        RigidBody::Dynamic,
+        Collider::circle(30.0),
+        Sensor,
+        AppleField,
     ));
 }
 
@@ -324,15 +348,18 @@ fn follow_mouse(
 
 fn detect_collision_with_apple(
     mut collision_reader: MessageReader<CollisionEnd>,
-    mut apple: Single<&mut Transform, With<Apple>>,
+    mut apple: Single<(Entity, &mut Transform), With<Apple>>,
     mut joints_query: Query<&mut Joint>,
     mut limb_query: Query<&mut LimbSegment>,
     mut limb_resource: ResMut<LimbResource>,
     mut commands: Commands,
     circle_mesh_and_material: Res<CircleMeshAndMaterial>,
 ) {
-    let no_of_snake_parts_to_add = 10;
+    let no_of_snake_parts_to_add = 2;
     for event in collision_reader.read() {
+        if event.collider1 != apple.0 && event.collider2 != apple.0 {
+            continue;
+        }
         for mut joint in joints_query.iter_mut() {
             joint.0 += no_of_snake_parts_to_add;
         }
@@ -349,7 +376,21 @@ fn detect_collision_with_apple(
         let mut rng = rand::rng();
         let x: f32 = rng.random_range(-300.0..=300.0);
         let y: f32 = rng.random_range(-300.0..=300.0);
-        apple.translation.x = x;
-        apple.translation.y = y;
+        apple.1.translation.x = x;
+        apple.1.translation.y = y;
+    }
+}
+
+fn detect_start_collision_with_apple(
+    mut collision_reader: MessageReader<CollisionStart>,
+    mut mouth: Single<&mut AnimationTimer, With<Mouth>>,
+    apple_field: Single<Entity, With<AppleField>>,
+) {
+    let apple_field = apple_field.entity();
+    for event in collision_reader.read() {
+        if event.collider1 != apple_field && event.collider2 != apple_field {
+            continue;
+        }
+        mouth.timer = AnimationTimer::timer_from_fps(mouth.frame_count as u8)
     }
 }
