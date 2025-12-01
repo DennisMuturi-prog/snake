@@ -19,8 +19,9 @@ fn main() {
         .add_systems(
             Update,
             (
-                detect_start_collision_with_apple,
+                detect_start_collision_with_apple_field,
                 detect_collision_with_apple,
+                detect_start_collision_with_apple
             ),
         )
         .add_systems(Update, execute_animations)
@@ -38,6 +39,9 @@ struct CircleMeshAndMaterial {
 
 #[derive(Resource, Deref, DerefMut)]
 struct SnakeVelocity(Vec2);
+
+#[derive(Resource, Deref, DerefMut)]
+struct CrunchSound(Handle<AudioSource>);
 
 #[derive(Component)]
 pub struct Apple;
@@ -230,6 +234,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     let shape = Circle::new(5.0);
     let mesh = meshes.add(shape);
@@ -276,7 +281,9 @@ fn setup(
         )],
     ));
 
-    // commands.spawn(());
+    let apple_crunch_sound = asset_server.load("sounds/crunch.wav");
+    commands.insert_resource(CrunchSound(apple_crunch_sound));
+
 }
 
 fn move_snake(
@@ -382,6 +389,21 @@ fn detect_collision_with_apple(
 }
 
 fn detect_start_collision_with_apple(
+    mut collision_reader: MessageReader<CollisionEnd>,
+    apple: Single<Entity, With<Apple>>,
+    mut commands: Commands,
+    crunch_sound: Res<CrunchSound>,
+) {
+    let apple= apple.entity();
+    for event in collision_reader.read() {
+        if event.collider1 != apple && event.collider2 != apple{
+            continue;
+        }
+        commands.spawn((AudioPlayer(crunch_sound.clone()), PlaybackSettings::DESPAWN));
+    }
+}
+
+fn detect_start_collision_with_apple_field(
     mut collision_reader: MessageReader<CollisionStart>,
     mut mouth: Single<&mut AnimationTimer, With<Mouth>>,
     apple_field: Single<Entity, With<AppleField>>,
