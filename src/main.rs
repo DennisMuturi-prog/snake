@@ -1,5 +1,5 @@
 use avian2d::prelude::*;
-use bevy::{app::Animation, prelude::*, window::PrimaryWindow};
+use bevy::{prelude::*, window::PrimaryWindow};
 use rand::Rng;
 use snake::fabrik::{Joint, JointFilter, Limb, LimbFilter, LimbSegment};
 fn main() {
@@ -53,20 +53,7 @@ fn draw_snake_head(
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ){
-    let shape = Rectangle::new(10.0,5.0);
-    let mesh = meshes.add(shape);
-    let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
-    let material = materials.add(color);
-
-    commands.spawn((
-        Mesh2d(mesh),
-        MeshMaterial2d(material),
-        Transform::from_xyz(20.0, -50.0, 0.0),
-        // RigidBody::Kinematic,
-        // Collider::circle(15.0),
-        // Sensor,
-        // Apple,
-    ));
+    
 
     let texture = asset_server.load("sprites/snake_mouth_sprite.png");
 
@@ -79,48 +66,52 @@ fn draw_snake_head(
         y:0
     }), None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    commands.spawn((
+    let mouth_bundle= (
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout.clone(),
                 index: 0,
             }),
+            flip_x:true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-100.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-10.0, 0.0, 0.0)),
         AnimationTimer{
             frame_count:15,
             timer:Timer::from_seconds(0.125, TimerMode::Repeating)
         }
-    ));
+    );
+    // commands.spawn(mouth_bundle);
 
     let texture = asset_server.load("sprites/snake_tounge.png");
 
     let layout = TextureAtlasLayout::from_grid(
         UVec2{
-        x:48,
+        x:47,
         y:22
     }, 21, 1, Some(UVec2{
-        x:1,
+        x:2,
         y:2
-    }), Some(UVec2{x:1,y:3}));
+    }), Some(UVec2{x:0,y:3}));
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    commands.spawn((
+    let tounge_bundle=(
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout.clone(),
                 index: 0,
             }),
+            flip_x:true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-50.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-35.0, 0.0, 0.0)),
         AnimationTimer{
             frame_count:21,
             timer:Timer::from_seconds(0.125, TimerMode::Repeating)
         }
-    ));
+    );
+    // commands.spawn(tounge_bundle);
 
 
     let texture = asset_server.load("sprites/snake_eye_sprite.png");
@@ -134,21 +125,40 @@ fn draw_snake_head(
         y:0
     }), None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    commands.spawn((
+    let eye_bundle1=(
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout.clone(),
                 index: 0,
             }),
+            flip_x:true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-150.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 0.0)),
         AnimationTimer{
             frame_count:9,
             timer:Timer::from_seconds(0.125, TimerMode::Repeating)
         }
-    ));
+    );
+
+    let eye_bundle2=(
+        Sprite {
+            image: texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            flip_x:true,
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 0.0)),
+        AnimationTimer{
+            frame_count:9,
+            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
+        }
+    );
+    // commands.spawn(eye_bundle);
 
 
     let texture = asset_server.load("sprites/snake_hit.png");
@@ -162,7 +172,7 @@ fn draw_snake_head(
         y:0
     }), None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    commands.spawn((
+    let hit_bundle= (
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
@@ -176,6 +186,25 @@ fn draw_snake_head(
             frame_count:36,
             timer:Timer::from_seconds(0.125, TimerMode::Repeating)
         }
+    );
+    commands.spawn(hit_bundle);
+
+
+    let shape = Rectangle::new(50.0,50.0);
+    let mesh = meshes.add(shape);
+    let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
+    let material = materials.add(color);
+
+    commands.spawn((
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
+        Transform::from_xyz(20.0, -50.0, 0.0),
+        children![
+            tounge_bundle,
+            mouth_bundle,
+            eye_bundle1,
+            eye_bundle2,
+        ]
     ));
 
 }

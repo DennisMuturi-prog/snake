@@ -55,8 +55,8 @@ impl Limb {
         for _ in 0..no_of_segments {
             segments.push_back(Segment::new(
                 Vec2 {
-                    x: starting_position.x,
-                    y: starting_position.y + sum,
+                    x: starting_position.x+sum,
+                    y: starting_position.y,
                 },
                 SNAKE_PART_LENGTH,
             ));
