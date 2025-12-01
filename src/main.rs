@@ -272,7 +272,7 @@ fn setup(
         Apple,
         children![(
             RigidBody::Kinematic,
-            Collider::circle(100.0),
+            Collider::circle(130.0),
             Sensor,
             AppleField
         )],
@@ -359,7 +359,7 @@ fn detect_collision_with_apple(
     mut commands: Commands,
     circle_mesh_and_material: Res<CircleMeshAndMaterial>,
 ) {
-    let no_of_snake_parts_to_add = 2;
+    let no_of_snake_parts_to_add = 1;
     for event in collision_reader.read() {
         if event.collider1 != apple.0 && event.collider2 != apple.0 {
             continue;

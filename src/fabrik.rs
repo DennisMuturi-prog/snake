@@ -13,7 +13,7 @@ pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
 const SNAKE_PART_LENGTH: f32 = 20.0;
 
 const SNAKE_PART_THICKNESS: f32 = 5.0;
-pub const SNAKE_HEAD_THICKNESS: f32 = 50.0;
+pub const SNAKE_HEAD_THICKNESS: f32 = 40.0;
 pub const SNAKE_HEAD_LENGTH: f32 = 50.0;
 
 #[derive(Component)]
