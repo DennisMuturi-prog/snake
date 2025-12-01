@@ -88,9 +88,92 @@ fn draw_snake_head(
             }),
             ..default()
         },
-        Transform::from_scale(Vec3::splat(2.0)).with_translation(Vec3::new(-70.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-100.0, 0.0, 0.0)),
         AnimationTimer{
             frame_count:15,
+            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
+        }
+    ));
+
+    let texture = asset_server.load("sprites/snake_tounge.png");
+
+    let layout = TextureAtlasLayout::from_grid(
+        UVec2{
+        x:48,
+        y:22
+    }, 21, 1, Some(UVec2{
+        x:1,
+        y:2
+    }), Some(UVec2{x:1,y:3}));
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    commands.spawn((
+        Sprite {
+            image: texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-50.0, 0.0, 0.0)),
+        AnimationTimer{
+            frame_count:21,
+            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
+        }
+    ));
+
+
+    let texture = asset_server.load("sprites/snake_eye_sprite.png");
+
+    let layout = TextureAtlasLayout::from_grid(
+        UVec2{
+        x:26,
+        y:28
+    }, 9, 1, Some(UVec2{
+        x:3,
+        y:0
+    }), None);
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    commands.spawn((
+        Sprite {
+            image: texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-150.0, 0.0, 0.0)),
+        AnimationTimer{
+            frame_count:9,
+            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
+        }
+    ));
+
+
+    let texture = asset_server.load("sprites/snake_hit.png");
+
+    let layout = TextureAtlasLayout::from_grid(
+        UVec2{
+        x:64,
+        y:53
+    }, 36, 1, Some(UVec2{
+        x:2,
+        y:0
+    }), None);
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    commands.spawn((
+        Sprite {
+            image: texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-200.0, 0.0, 0.0)),
+        AnimationTimer{
+            frame_count:36,
             timer:Timer::from_seconds(0.125, TimerMode::Repeating)
         }
     ));
