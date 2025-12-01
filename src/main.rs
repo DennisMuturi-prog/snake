@@ -52,12 +52,14 @@ pub struct Mouth;
 struct AnimationTimer {
     frame_count: usize,
     timer: Timer,
+    fps:u8
 }
 impl AnimationTimer {
-    fn new(frame_count: usize) -> Self {
+    fn new(frame_count: usize,fps:u8) -> Self {
         Self {
             frame_count,
-            timer: AnimationTimer::timer_from_fps(frame_count as u8),
+            fps,
+            timer: AnimationTimer::timer_from_fps(fps),
         }
     }
     fn timer_from_fps(fps: u8) -> Timer {
@@ -98,10 +100,9 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-10.0, 0.0, 0.0)),
-        AnimationTimer::new(15),
+        AnimationTimer::new(15,30),
         Mouth,
     );
-    // commands.spawn(mouth_bundle);
 
     let texture = asset_server.load("sprites/snake_tounge.png");
 
@@ -124,9 +125,8 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-35.0, 0.0, 0.0)),
-        AnimationTimer::new(21),
+        AnimationTimer::new(21,20),
     );
-    // commands.spawn(tounge_bundle);
 
     let texture = asset_server.load("sprites/snake_eye_sprite.png");
 
@@ -149,7 +149,7 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 0.0)),
-        AnimationTimer::new(9),
+        AnimationTimer::new(9,20),
     );
 
     let eye_bundle2 = (
@@ -163,9 +163,8 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 0.0)),
-        AnimationTimer::new(9),
+        AnimationTimer::new(9,20),
     );
-    // commands.spawn(eye_bundle);
 
     let texture = asset_server.load("sprites/snake_hit.png");
 
@@ -187,7 +186,7 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-200.0, 0.0, 0.0)),
-        AnimationTimer::new(36),
+        AnimationTimer::new(36,20),
     );
     commands.spawn(hit_bundle);
     let shape = Rectangle::new(SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS);
@@ -221,7 +220,7 @@ fn execute_animations(time: Res<Time>, mut query: Query<(&mut AnimationTimer, &m
                 // ...and it is NOT the last frame, then we move to the next frame...
                 atlas.index += 1;
                 // ...and reset the frame timer to start counting all over again
-                config.timer = AnimationTimer::timer_from_fps(config.frame_count as u8);
+                config.timer = AnimationTimer::timer_from_fps(config.fps);
             }
         }
     }
@@ -269,14 +268,15 @@ fn setup(
         Collider::circle(15.0),
         Sensor,
         Apple,
+        children![(
+            RigidBody::Kinematic,
+            Collider::circle(100.0),
+            Sensor,
+            AppleField
+        )],
     ));
 
-    commands.spawn((
-        RigidBody::Dynamic,
-        Collider::circle(30.0),
-        Sensor,
-        AppleField,
-    ));
+    // commands.spawn(());
 }
 
 fn move_snake(
@@ -391,6 +391,6 @@ fn detect_start_collision_with_apple(
         if event.collider1 != apple_field && event.collider2 != apple_field {
             continue;
         }
-        mouth.timer = AnimationTimer::timer_from_fps(mouth.frame_count as u8)
+        mouth.timer = AnimationTimer::timer_from_fps(mouth.fps)
     }
 }
