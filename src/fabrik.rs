@@ -13,6 +13,7 @@ pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
 const SNAKE_PART_LENGTH: f32 = 20.0;
 
 const SNAKE_PART_THICKNESS: f32 = 5.0;
+pub const SNAKE_HEAD_LENGTH: f32 = 50.0;
 
 #[derive(Component)]
 pub struct LimbSegment(pub usize);
@@ -52,23 +53,36 @@ impl Limb {
         let mut segments = VecDeque::<Segment>::new();
         let mut sum = 0.0;
 
-        for _ in 0..no_of_segments {
-            segments.push_back(Segment::new(
-                Vec2 {
-                    x: starting_position.x+sum,
-                    y: starting_position.y,
-                },
-                SNAKE_PART_LENGTH,
-            ));
-            sum += SNAKE_PART_LENGTH;
+        for i in 0..no_of_segments {
+            if i == no_of_segments - 2 {
+                segments.push_back(Segment::new(
+                    Vec2 {
+                        x: starting_position.x + sum,
+                        y: starting_position.y,
+                    },
+                    SNAKE_HEAD_LENGTH,
+                ));
+                sum -= SNAKE_HEAD_LENGTH;
+            } else {
+                segments.push_back(Segment::new(
+                    Vec2 {
+                        x: starting_position.x + sum,
+                        y: starting_position.y,
+                    },
+                    SNAKE_PART_LENGTH,
+                ));
+                sum -= SNAKE_PART_LENGTH;
+            }
         }
+
         Self { segments, target }
     }
-    pub fn display(
+    pub fn display<S: Bundle>(
         &self,
         commands: &mut Commands,
         circle_mesh: Handle<Mesh>,
         circle_material: Handle<ColorMaterial>,
+        snake_bundle: S,
     ) {
         let first_position = self.segments[0].position;
         let line_sprite = Sprite {
@@ -89,33 +103,32 @@ impl Limb {
             Joint(0),
         ));
 
+        let start_point = self.segments[second_last_index].position;
+        let end_point = self.segments[second_last_index + 1].position;
+        let midpoint = (start_point + end_point) / 2.0;
+
+        commands.spawn((
+            Transform {
+                translation: midpoint.extend(0.0),
+                ..default()
+            },
+            LimbSegment(second_last_index),
+            HeadOfSnake,
+            RigidBody::Kinematic,
+            Collider::rectangle(SNAKE_HEAD_LENGTH, SNAKE_PART_THICKNESS),
+            CollisionEventsEnabled,
+            snake_bundle,
+        ));
+
         for i in 0..self.segments.len() - 1 {
             let start_point = self.segments[i].position;
             let end_point = self.segments[i + 1].position;
-
-            let direction = start_point - end_point;
-            let angle = direction.y.atan2(direction.x);
             let midpoint = (start_point + end_point) / 2.0;
-            if i == second_last_index {
+            if i != second_last_index {
                 commands.spawn((
                     line_sprite.clone(),
                     Transform {
                         translation: midpoint.extend(0.0),
-                        rotation: Quat::from_rotation_z(angle),
-                        ..default()
-                    },
-                    LimbSegment(i),
-                    HeadOfSnake,
-                    RigidBody::Kinematic,
-                    Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
-                    CollisionEventsEnabled,
-                ));
-            } else {
-                commands.spawn((
-                    line_sprite.clone(),
-                    Transform {
-                        translation: midpoint.extend(0.0),
-                        rotation: Quat::from_rotation_z(angle),
                         ..default()
                     },
                     LimbSegment(i),
