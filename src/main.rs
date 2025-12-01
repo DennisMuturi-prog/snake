@@ -260,14 +260,11 @@ fn setup(
         y: SNAKE_SPEED - 10.0,
     }));
 
-    let apple_shape = Circle::new(15.0);
-    let apple_mesh = meshes.add(apple_shape);
-    let apple_color = Color::Srgba(Srgba::rgb(0.0, 0.647, 0.0));
-
-    let apple_material = materials.add(apple_color);
     commands.spawn((
-        Mesh2d(apple_mesh),
-        MeshMaterial2d(apple_material),
+        Sprite {
+            image: asset_server.load("sprites/apple.png"),
+            ..default()
+        },
         Transform::from_xyz(20.0, 50.0, 0.0),
         RigidBody::Kinematic,
         Collider::circle(15.0),
