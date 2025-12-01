@@ -1,7 +1,7 @@
 use avian2d::prelude::*;
 use bevy::{prelude::*, window::PrimaryWindow};
 use rand::Rng;
-use snake::fabrik::{Joint, JointFilter, Limb, LimbFilter, LimbSegment};
+use snake::fabrik::{Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH};
 fn main() {
     App::new()
         .add_plugins((
@@ -9,8 +9,7 @@ fn main() {
             PhysicsPlugins::default(),
             // PhysicsDebugPlugin,
         ))
-        .add_systems(Startup, setup)
-        .add_systems(Startup, draw_snake_head)
+        .add_systems(Startup, (setup,draw_snake_head).chain())
         .add_systems(Update, follow_mouse)
         .add_systems(Update, move_snake)
         .add_systems(Update, detect_collision_with_apple)
@@ -22,11 +21,10 @@ fn main() {
 struct LimbResource(Limb);
 
 #[derive(Resource)]
-struct CircleMeshAndMaterial{
-    mesh:Handle<Mesh>,
-    material:Handle<ColorMaterial>
+struct CircleMeshAndMaterial {
+    mesh: Handle<Mesh>,
+    material: Handle<ColorMaterial>,
 }
-
 
 #[derive(Resource, Deref, DerefMut)]
 struct SnakeVelocity(Vec2);
@@ -34,145 +32,136 @@ struct SnakeVelocity(Vec2);
 #[derive(Component)]
 pub struct Apple;
 
-
 #[derive(Component)]
-struct AnimationTimer{
-    frame_count:usize,
-    timer:Timer
-
+struct AnimationTimer {
+    frame_count: usize,
+    timer: Timer,
 }
 
 const SNAKE_SPEED: f32 = 10.0;
 
 const NO_OF_SNAKE_PARTS: usize = 10;
-
 fn draw_snake_head(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-){
-    
-
+    limb_resource: Res<LimbResource>,
+    circle_mesh_and_material: Res<CircleMeshAndMaterial>,
+) {
     let texture = asset_server.load("sprites/snake_mouth_sprite.png");
 
     let layout = TextureAtlasLayout::from_grid(
-        UVec2{
-        x:33,
-        y:53
-    }, 15, 1, Some(UVec2{
-        x:3,
-        y:0
-    }), None);
+        UVec2 { x: 33, y: 53 },
+        15,
+        1,
+        Some(UVec2 { x: 3, y: 0 }),
+        None,
+    );
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let mouth_bundle= (
+    let mouth_bundle = (
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout.clone(),
                 index: 0,
             }),
-            flip_x:true,
+            flip_x: true,
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-10.0, 0.0, 0.0)),
-        AnimationTimer{
-            frame_count:15,
-            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
-        }
+        AnimationTimer {
+            frame_count: 15,
+            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
+        },
     );
     // commands.spawn(mouth_bundle);
 
     let texture = asset_server.load("sprites/snake_tounge.png");
 
     let layout = TextureAtlasLayout::from_grid(
-        UVec2{
-        x:47,
-        y:22
-    }, 21, 1, Some(UVec2{
-        x:2,
-        y:2
-    }), Some(UVec2{x:0,y:3}));
+        UVec2 { x: 47, y: 22 },
+        21,
+        1,
+        Some(UVec2 { x: 2, y: 2 }),
+        Some(UVec2 { x: 0, y: 3 }),
+    );
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let tounge_bundle=(
+    let tounge_bundle = (
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout.clone(),
                 index: 0,
             }),
-            flip_x:true,
+            flip_x: true,
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-35.0, 0.0, 0.0)),
-        AnimationTimer{
-            frame_count:21,
-            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
-        }
+        AnimationTimer {
+            frame_count: 21,
+            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
+        },
     );
     // commands.spawn(tounge_bundle);
-
 
     let texture = asset_server.load("sprites/snake_eye_sprite.png");
 
     let layout = TextureAtlasLayout::from_grid(
-        UVec2{
-        x:26,
-        y:28
-    }, 9, 1, Some(UVec2{
-        x:3,
-        y:0
-    }), None);
+        UVec2 { x: 26, y: 28 },
+        9,
+        1,
+        Some(UVec2 { x: 3, y: 0 }),
+        None,
+    );
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let eye_bundle1=(
+    let eye_bundle1 = (
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout.clone(),
                 index: 0,
             }),
-            flip_x:true,
+            flip_x: true,
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 0.0)),
-        AnimationTimer{
-            frame_count:9,
-            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
-        }
+        AnimationTimer {
+            frame_count: 9,
+            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
+        },
     );
 
-    let eye_bundle2=(
+    let eye_bundle2 = (
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout.clone(),
                 index: 0,
             }),
-            flip_x:true,
+            flip_x: true,
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 0.0)),
-        AnimationTimer{
-            frame_count:9,
-            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
-        }
+        AnimationTimer {
+            frame_count: 9,
+            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
+        },
     );
     // commands.spawn(eye_bundle);
-
 
     let texture = asset_server.load("sprites/snake_hit.png");
 
     let layout = TextureAtlasLayout::from_grid(
-        UVec2{
-        x:64,
-        y:53
-    }, 36, 1, Some(UVec2{
-        x:2,
-        y:0
-    }), None);
+        UVec2 { x: 64, y: 53 },
+        36,
+        1,
+        Some(UVec2 { x: 2, y: 0 }),
+        None,
+    );
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let hit_bundle= (
+    let hit_bundle = (
         Sprite {
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
@@ -182,49 +171,43 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-200.0, 0.0, 0.0)),
-        AnimationTimer{
-            frame_count:36,
-            timer:Timer::from_seconds(0.125, TimerMode::Repeating)
-        }
+        AnimationTimer {
+            frame_count: 36,
+            timer: Timer::from_seconds(0.125, TimerMode::Repeating),
+        },
     );
     commands.spawn(hit_bundle);
 
-
-    let shape = Rectangle::new(50.0,50.0);
+    let shape = Rectangle::new(SNAKE_HEAD_LENGTH, 50.0);
     let mesh = meshes.add(shape);
     let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
     let material = materials.add(color);
-
-    commands.spawn((
+    let snake_bundle=(
         Mesh2d(mesh),
         MeshMaterial2d(material),
-        Transform::from_xyz(20.0, -50.0, 0.0),
-        children![
-            tounge_bundle,
-            mouth_bundle,
-            eye_bundle1,
-            eye_bundle2,
-        ]
-    ));
+        children![tounge_bundle, mouth_bundle, eye_bundle1, eye_bundle2,],
+    );
 
+    limb_resource.display(
+        &mut commands,
+        circle_mesh_and_material.mesh.clone(),
+        circle_mesh_and_material.material.clone(),
+       snake_bundle
+    );
 }
 
-
-fn execute_animations(time: Res<Time>, mut query: Query<( &mut AnimationTimer,&mut Sprite)>) {
-
+fn execute_animations(time: Res<Time>, mut query: Query<(&mut AnimationTimer, &mut Sprite)>) {
     for (mut config, mut sprite) in &mut query {
         config.timer.tick(time.delta());
         if config.timer.just_finished()
             && let Some(atlas) = &mut sprite.texture_atlas
         {
-            atlas.index+=1;
-            if atlas.index == config.frame_count{
-                atlas.index=0;
+            atlas.index += 1;
+            if atlas.index == config.frame_count {
+                atlas.index = 0;
             }
         }
     }
-
-
 }
 
 fn setup(
@@ -236,19 +219,19 @@ fn setup(
     let mesh = meshes.add(shape);
     let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
     let material = materials.add(color);
-    commands.insert_resource(CircleMeshAndMaterial{
-        mesh:mesh.clone(),
-        material:material.clone()
+    commands.insert_resource(CircleMeshAndMaterial {
+        mesh: mesh.clone(),
+        material: material.clone(),
     });
     commands.spawn(Camera2d);
     let limb = Limb::new(
         Vec2 { x: 200.0, y: 200.0 },
         NO_OF_SNAKE_PARTS,
-        Vec2 { x: 200.0, y: -200.0 },
+        Vec2 {
+            x: 200.0,
+            y: -200.0,
+        },
     );
-
-    limb.display(&mut commands, mesh, material);
-
     commands.insert_resource(LimbResource(limb));
 
     commands.insert_resource(SnakeVelocity(Vec2 {
@@ -342,22 +325,26 @@ fn follow_mouse(
 fn detect_collision_with_apple(
     mut collision_reader: MessageReader<CollisionEnd>,
     mut apple: Single<&mut Transform, With<Apple>>,
-    mut joints_query:Query<&mut Joint>,
-    mut limb_query:Query<&mut LimbSegment>,
+    mut joints_query: Query<&mut Joint>,
+    mut limb_query: Query<&mut LimbSegment>,
     mut limb_resource: ResMut<LimbResource>,
     mut commands: Commands,
-    circle_mesh_and_material:Res<CircleMeshAndMaterial>
+    circle_mesh_and_material: Res<CircleMeshAndMaterial>,
 ) {
-    let no_of_snake_parts_to_add=10;
+    let no_of_snake_parts_to_add = 10;
     for event in collision_reader.read() {
-        for mut joint in joints_query.iter_mut(){
-            joint.0+=no_of_snake_parts_to_add;
-
+        for mut joint in joints_query.iter_mut() {
+            joint.0 += no_of_snake_parts_to_add;
         }
-        for mut limb in limb_query.iter_mut(){
-            limb.0+=no_of_snake_parts_to_add;
+        for mut limb in limb_query.iter_mut() {
+            limb.0 += no_of_snake_parts_to_add;
         }
-        limb_resource.add_multiple_snake_parts(no_of_snake_parts_to_add, &mut commands, circle_mesh_and_material.mesh.clone(), circle_mesh_and_material.material.clone());
+        limb_resource.add_multiple_snake_parts(
+            no_of_snake_parts_to_add,
+            &mut commands,
+            circle_mesh_and_material.mesh.clone(),
+            circle_mesh_and_material.material.clone(),
+        );
 
         let mut rng = rand::rng();
         let x: f32 = rng.random_range(-300.0..=300.0);
