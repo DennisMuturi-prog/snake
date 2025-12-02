@@ -14,7 +14,7 @@ fn main() {
             PhysicsDebugPlugin,
         ))
         .add_systems(Startup, (setup, draw_snake_head).chain())
-        .add_systems(Startup, draw_walls)
+        .add_systems(Startup, draw_boundaries)
         .add_systems(Update, follow_mouse)
         .add_systems(Update, move_snake)
         .add_systems(
@@ -23,7 +23,8 @@ fn main() {
                 detect_start_collision_with_apple_field,
                 detect_collision_with_apple,
                 detect_start_collision_with_apple,
-                trigger_tounge_and_eyes_animation
+                trigger_tounge_and_eyes_animation,
+                detect_start_collision_with_boundary
             ),
         )
         .add_systems(Update, execute_animations)
@@ -47,6 +48,9 @@ struct SnakeVelocity(Vec2);
 
 #[derive(Resource, Deref, DerefMut)]
 struct CrunchSound(Handle<AudioSource>);
+
+#[derive(Resource, Deref, DerefMut)]
+struct HitSound(Handle<AudioSource>);
 
 #[derive(Component)]
 pub struct Apple;
@@ -264,7 +268,7 @@ fn execute_animations(time: Res<Time>, mut query: Query<(&mut AnimationTimer, &m
         }
     }
 }
-fn draw_walls(
+fn draw_boundaries(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -279,7 +283,8 @@ fn draw_walls(
         MeshMaterial2d(material.clone()),
         Transform::from_xyz(-WALL_RIGHT_POSITION,0.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT)
+        Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT),
+        Boundary
     )
     );
 
@@ -289,7 +294,8 @@ fn draw_walls(
         MeshMaterial2d(material.clone()),
         Transform::from_xyz(WALL_RIGHT_POSITION,0.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT)
+        Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT),
+        Boundary
     )
     );
 
@@ -302,7 +308,8 @@ fn draw_walls(
         MeshMaterial2d(material.clone()),
         Transform::from_xyz(0.0,WALL_HEIGHT/2.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS)
+        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS),
+        Boundary
     )
     );
 
@@ -313,7 +320,8 @@ fn draw_walls(
         MeshMaterial2d(material),
         Transform::from_xyz(0.0,-WALL_HEIGHT/2.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS)
+        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS),
+        Boundary
     )
     );
 
@@ -370,6 +378,9 @@ fn setup(
 
     let apple_crunch_sound = asset_server.load("sounds/crunch.wav");
     commands.insert_resource(CrunchSound(apple_crunch_sound));
+
+    let hit_sound = asset_server.load("sounds/hit.wav");
+    commands.insert_resource(HitSound(hit_sound));
 
     commands.insert_resource(ToungeAndEyesAnimationTimer(Timer::from_seconds(5.0, TimerMode::Repeating)));
 
@@ -496,6 +507,21 @@ fn detect_start_collision_with_apple(
             continue;
         }
         commands.spawn((AudioPlayer(crunch_sound.clone()), PlaybackSettings::DESPAWN));
+    }
+}
+
+
+fn detect_start_collision_with_boundary(
+    mut collision_reader: MessageReader<CollisionStart>,
+    boundary: Query<Entity, With<Boundary>>,
+    mut commands: Commands,
+    hit_sound: Res<HitSound>,
+) {
+    for event in collision_reader.read() {
+        if boundary.get(event.collider1).is_err() && boundary.get(event.collider2).is_err() {
+            continue;
+        }
+        commands.spawn((AudioPlayer(hit_sound.clone()), PlaybackSettings::DESPAWN));
     }
 }
 
