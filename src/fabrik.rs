@@ -115,7 +115,8 @@ impl Limb {
             },
             LimbSegment(second_last_index),
             HeadOfSnake,
-            RigidBody::Kinematic,
+            RigidBody::Dynamic,
+            GravityScale(0.0),
             Collider::rectangle(SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS),
             CollisionEventsEnabled,
             snake_bundle,
@@ -134,6 +135,7 @@ impl Limb {
                     },
                     RigidBody::Dynamic,
                     GravityScale(0.0),
+                    Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
                     LimbSegment(i),
                 ));
             }
@@ -149,7 +151,7 @@ impl Limb {
     pub fn update_visuals(
         &self,
         mut joint_query: Query<(&mut Transform, &Joint), JointFilter>,
-        mut limb_query: Query<(&mut Transform, &LimbSegment), LimbFilter>,
+        mut limb_query: Query<(&mut Transform, &mut LinearVelocity, &LimbSegment), LimbFilter>,
     ) {
         for (mut transform, joint) in joint_query.iter_mut() {
             if let Some(segment) = self.segments.get(joint.0) {
@@ -157,7 +159,7 @@ impl Limb {
             }
         }
 
-        for (mut transform, limb_segment) in limb_query.iter_mut() {
+        for (mut transform, mut linear_velocity, limb_segment) in limb_query.iter_mut() {
             let i = limb_segment.0;
             let start_point = self.segments[i].position;
             let end_point = self.segments[i + 1].position;
@@ -165,15 +167,19 @@ impl Limb {
             let direction = start_point - end_point;
 
             let angle = direction.y.atan2(direction.x);
-            let midpoint = (start_point + end_point) / 2.0;
+            let target_midpoint = ((start_point + end_point) / 2.0).extend(0.0);
 
-            transform.translation = midpoint.extend(0.0);
+            // transform.translation = midpoint.extend(0.0);
+
+            let diff = target_midpoint - transform.translation;
+            linear_velocity.0 = diff.truncate() / 0.125;
             transform.rotation = Quat::from_rotation_z(angle);
         }
     }
 
     pub fn forward_fabrik(&mut self) {
         let len = self.segments.len();
+        println!("n is {}",len);
         if len == 0 {
             return;
         }
@@ -195,6 +201,7 @@ impl Limb {
     }
     pub fn get_last_segment_position(&self) -> Vec2 {
         let last_index = self.segments.len() - 1;
+        println!("last index is {}",last_index);
         self.segments[last_index].position
     }
 
@@ -243,6 +250,9 @@ impl Limb {
                     rotation: Quat::from_rotation_z(angle),
                     ..default()
                 },
+                RigidBody::Dynamic,
+                GravityScale(0.0),
+                Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
                 LimbSegment(i),
             ));
 

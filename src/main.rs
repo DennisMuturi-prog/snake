@@ -4,7 +4,7 @@ use avian2d::prelude::*;
 use bevy::{prelude::*, window::PrimaryWindow};
 use rand::Rng;
 use snake::fabrik::{
-    Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS,
+    HeadOfSnake, Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS
 };
 fn main() {
     App::new()
@@ -16,7 +16,7 @@ fn main() {
         .add_systems(Startup, (setup, draw_snake_head).chain())
         .add_systems(Startup, draw_walls)
         .add_systems(Update, follow_mouse)
-        .add_systems(Update, move_snake)
+        .add_systems(Update, (move_snake,apply_snake_animation).chain())
         .add_systems(
             Update,
             (
@@ -85,7 +85,7 @@ impl AnimationTimer {
     }
 }
 
-const SNAKE_SPEED: f32 = 10.0;
+const SNAKE_SPEED: f32 = 1.0;
 
 const NO_OF_SNAKE_PARTS: usize = 10;
 fn draw_snake_head(
@@ -370,53 +370,60 @@ fn setup(
 
 }
 
+fn apply_snake_animation(
+    joint_query: Query<(&mut Transform, &Joint), JointFilter>,
+    limb_query: Query<(&mut Transform,&mut LinearVelocity, &LimbSegment), LimbFilter>,
+    limb_resource: ResMut<LimbResource>,
+){
+    limb_resource.update_visuals(joint_query, limb_query);
+}
+
 fn move_snake(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    joint_query: Query<(&mut Transform, &Joint), JointFilter>,
-    limb_query: Query<(&mut Transform, &LimbSegment), LimbFilter>,
     mut limb_resource: ResMut<LimbResource>,
-    mut snake_velocity: ResMut<SnakeVelocity>,
+    snake_velocity: Single<&LinearVelocity,With<HeadOfSnake>>,
 ) {
+    let mut snake_velocity=snake_velocity.0;
+    println!("snake velocity is {:?}",snake_velocity);
     if keyboard_input.pressed(KeyCode::ArrowLeft) {
-        snake_velocity.0 = Vec2 {
+        snake_velocity = Vec2 {
             x: -SNAKE_SPEED,
             y: 0.0,
         };
     }
     if keyboard_input.pressed(KeyCode::ArrowRight) {
-        snake_velocity.0 = Vec2 {
+        snake_velocity = Vec2 {
             x: SNAKE_SPEED,
             y: 0.0,
         };
     }
 
     if keyboard_input.pressed(KeyCode::ArrowUp) {
-        snake_velocity.0 = Vec2 {
+        snake_velocity= Vec2 {
             x: 0.0,
             y: SNAKE_SPEED,
         };
     }
 
     if keyboard_input.pressed(KeyCode::ArrowDown) {
-        snake_velocity.0 = Vec2 {
+        snake_velocity= Vec2 {
             x: 0.0,
             y: -SNAKE_SPEED,
         };
     }
-    if snake_velocity.0.length() == 0.0 {
+    if snake_velocity.length() == 0.0 {
         return;
     }
-    let target = limb_resource.get_last_segment_position() + snake_velocity.0;
+    let target = limb_resource.get_last_segment_position() + snake_velocity;
     limb_resource.set_target(target);
     limb_resource.forward_fabrik();
-    limb_resource.update_visuals(joint_query, limb_query);
 }
 fn follow_mouse(
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     camera: Query<(&Camera, &GlobalTransform)>,
     joint_query: Query<(&mut Transform, &Joint), JointFilter>,
-    limb_query: Query<(&mut Transform, &LimbSegment), LimbFilter>,
+    limb_query: Query<(&mut Transform,&mut LinearVelocity, &LimbSegment), LimbFilter>,
     mut limb_resource: ResMut<LimbResource>,
 ) -> Result {
     if buttons.pressed(MouseButton::Left) {
