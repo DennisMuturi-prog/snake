@@ -4,7 +4,8 @@ use avian2d::prelude::*;
 use bevy::{prelude::*, window::PrimaryWindow};
 use rand::Rng;
 use snake::fabrik::{
-    Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS,
+    HeadOfSnake, Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH,
+    SNAKE_HEAD_THICKNESS,
 };
 fn main() {
     App::new()
@@ -24,7 +25,7 @@ fn main() {
                 detect_collision_with_apple,
                 detect_start_collision_with_apple,
                 trigger_tounge_and_eyes_animation,
-                detect_start_collision_with_boundary
+                detect_start_collision_with_boundary,
             ),
         )
         .add_systems(Update, execute_animations)
@@ -41,6 +42,12 @@ struct ToungeAndEyesAnimationTimer(Timer);
 struct CircleMeshAndMaterial {
     mesh: Handle<Mesh>,
     material: Handle<ColorMaterial>,
+}
+
+#[derive(Resource)]
+struct HitAnimationTextureAndAtlas {
+    texture: Handle<Image>,
+    texture_atlas_layout: Handle<TextureAtlasLayout>,
 }
 
 #[derive(Resource, Deref, DerefMut)]
@@ -92,15 +99,13 @@ impl AnimationTimer {
 const SNAKE_SPEED: f32 = 10.0;
 
 const NO_OF_SNAKE_PARTS: usize = 10;
-const WALL_HEIGHT:f32=600.0;
-const WALL_THICKNESS:f32=20.0;
+const WALL_HEIGHT: f32 = 600.0;
+const WALL_THICKNESS: f32 = 20.0;
 
-const FLOOR_THICKNESS:f32=WALL_THICKNESS;
-const WALL_RIGHT_POSITION:f32=600.0;
+const FLOOR_THICKNESS: f32 = WALL_THICKNESS;
+const WALL_RIGHT_POSITION: f32 = 600.0;
 fn draw_snake_head(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     limb_resource: Res<LimbResource>,
@@ -126,7 +131,7 @@ fn draw_snake_head(
             flip_x: true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-15.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-15.0, 0.0, 10.0)),
         AnimationTimer::new(15, 30),
         Mouth,
     );
@@ -151,7 +156,7 @@ fn draw_snake_head(
             flip_x: true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-40.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-40.0, 0.0, 10.0)),
         AnimationTimer::new(21, 20),
         Tongue,
     );
@@ -176,7 +181,7 @@ fn draw_snake_head(
             flip_x: true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 10.0)),
         AnimationTimer::new(9, 20),
         Eye,
     );
@@ -191,7 +196,7 @@ fn draw_snake_head(
             flip_x: true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 10.0)),
         AnimationTimer::new(9, 20),
         Eye,
     );
@@ -206,29 +211,22 @@ fn draw_snake_head(
         None,
     );
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let hit_bundle = (
-        Sprite {
-            image: texture.clone(),
-            texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout.clone(),
-                index: 0,
-            }),
-            ..default()
-        },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-200.0, 0.0, 0.0)),
-        AnimationTimer::new(36, 20),
-    );
-    commands.spawn(hit_bundle);
-    let shape = Rectangle::new(SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS);
-    let mesh = meshes.add(shape);
-    let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
-    let material = materials.add(color);
+    commands.insert_resource(HitAnimationTextureAndAtlas {
+        texture,
+        texture_atlas_layout,
+    });
+    let line_sprite = Sprite {
+        color: Color::srgb(0.2, 0.7, 0.9),
+        custom_size: Some(Vec2 {
+            x: SNAKE_HEAD_LENGTH,
+            y: SNAKE_HEAD_THICKNESS,
+        }),
+        ..default()
+    };
     let snake_bundle = (
-        Mesh2d(mesh),
-        MeshMaterial2d(material),
+        line_sprite,
         children![tounge_bundle, mouth_bundle, eye_bundle1, eye_bundle2,],
     );
-
     limb_resource.display(
         &mut commands,
         circle_mesh_and_material.mesh.clone(),
@@ -272,60 +270,49 @@ fn draw_boundaries(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-){
+) {
     let shape = Rectangle::new(WALL_THICKNESS, WALL_HEIGHT);
     let mesh = meshes.add(shape);
     let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
     let material = materials.add(color);
-    commands.spawn(
-        (
+    commands.spawn((
         Mesh2d(mesh.clone()),
         MeshMaterial2d(material.clone()),
-        Transform::from_xyz(-WALL_RIGHT_POSITION,0.0,0.0),
+        Transform::from_xyz(-WALL_RIGHT_POSITION, 0.0, 0.0),
         RigidBody::Static,
         Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT),
-        Boundary
-    )
-    );
+        Boundary,
+    ));
 
-    commands.spawn(
-        (
+    commands.spawn((
         Mesh2d(mesh),
         MeshMaterial2d(material.clone()),
-        Transform::from_xyz(WALL_RIGHT_POSITION,0.0,0.0),
+        Transform::from_xyz(WALL_RIGHT_POSITION, 0.0, 0.0),
         RigidBody::Static,
         Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT),
-        Boundary
-    )
-    );
+        Boundary,
+    ));
 
-    let shape = Rectangle::new(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS);
+    let shape = Rectangle::new(WALL_RIGHT_POSITION * 2.0, FLOOR_THICKNESS);
     let mesh = meshes.add(shape);
 
-    commands.spawn(
-        (
+    commands.spawn((
         Mesh2d(mesh.clone()),
         MeshMaterial2d(material.clone()),
-        Transform::from_xyz(0.0,WALL_HEIGHT/2.0,0.0),
+        Transform::from_xyz(0.0, WALL_HEIGHT / 2.0, 0.0),
         RigidBody::Static,
-        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS),
-        Boundary
-    )
-    );
+        Collider::rectangle(WALL_RIGHT_POSITION * 2.0, FLOOR_THICKNESS),
+        Boundary,
+    ));
 
-
-    commands.spawn(
-        (
+    commands.spawn((
         Mesh2d(mesh),
         MeshMaterial2d(material),
-        Transform::from_xyz(0.0,-WALL_HEIGHT/2.0,0.0),
+        Transform::from_xyz(0.0, -WALL_HEIGHT / 2.0, 0.0),
         RigidBody::Static,
-        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS),
-        Boundary
-    )
-    );
-
-
+        Collider::rectangle(WALL_RIGHT_POSITION * 2.0, FLOOR_THICKNESS),
+        Boundary,
+    ));
 }
 
 fn setup(
@@ -382,8 +369,10 @@ fn setup(
     let hit_sound = asset_server.load("sounds/hit.wav");
     commands.insert_resource(HitSound(hit_sound));
 
-    commands.insert_resource(ToungeAndEyesAnimationTimer(Timer::from_seconds(5.0, TimerMode::Repeating)));
-
+    commands.insert_resource(ToungeAndEyesAnimationTimer(Timer::from_seconds(
+        5.0,
+        TimerMode::Repeating,
+    )));
 }
 
 fn move_snake(
@@ -422,12 +411,16 @@ fn move_snake(
     if snake_velocity.0.length() == 0.0 {
         return;
     }
-    let right_bound_x=WALL_RIGHT_POSITION-WALL_THICKNESS/2.0;
-    let upper_bound_y= WALL_HEIGHT/2.0-FLOOR_THICKNESS/2.0;
+    let right_bound_x = WALL_RIGHT_POSITION - WALL_THICKNESS / 2.0;
+    let upper_bound_y = WALL_HEIGHT / 2.0 - FLOOR_THICKNESS / 2.0;
     let target = limb_resource.get_last_segment_position() + snake_velocity.0;
-    if target.x>=right_bound_x ||  target.x<=-right_bound_x || target.y>=upper_bound_y || target.y<=-upper_bound_y{
-        snake_velocity.0=Vec2::ZERO;
-    } 
+    if target.x >= right_bound_x
+        || target.x <= -right_bound_x
+        || target.y >= upper_bound_y
+        || target.y <= -upper_bound_y
+    {
+        snake_velocity.0 = Vec2::ZERO;
+    }
     limb_resource.set_target(target);
     limb_resource.forward_fabrik();
     limb_resource.update_visuals(joint_query, limb_query);
@@ -486,8 +479,8 @@ fn detect_collision_with_apple(
         );
 
         let mut rng = rand::rng();
-        let right_bound_x=WALL_RIGHT_POSITION-WALL_THICKNESS/2.0-20.0;
-        let upper_bound_y= WALL_HEIGHT/2.0-FLOOR_THICKNESS/2.0 -20.0;
+        let right_bound_x = WALL_RIGHT_POSITION - WALL_THICKNESS / 2.0 - 20.0;
+        let upper_bound_y = WALL_HEIGHT / 2.0 - FLOOR_THICKNESS / 2.0 - 20.0;
         let x: f32 = rng.random_range(-right_bound_x..=right_bound_x);
         let y: f32 = rng.random_range(-upper_bound_y..=upper_bound_y);
         apple.1.translation.x = x;
@@ -510,18 +503,26 @@ fn detect_start_collision_with_apple(
     }
 }
 
-
 fn detect_start_collision_with_boundary(
     mut collision_reader: MessageReader<CollisionStart>,
     boundary: Query<Entity, With<Boundary>>,
+    mut snake_head: Single<(Entity,&mut Sprite), With<HeadOfSnake>>,
     mut commands: Commands,
     hit_sound: Res<HitSound>,
+    hit_animation: Res<HitAnimationTextureAndAtlas>,
 ) {
     for event in collision_reader.read() {
         if boundary.get(event.collider1).is_err() && boundary.get(event.collider2).is_err() {
             continue;
         }
         commands.spawn((AudioPlayer(hit_sound.clone()), PlaybackSettings::DESPAWN));
+        snake_head.1.image = hit_animation.texture.clone();
+        snake_head.1.texture_atlas = Some(TextureAtlas {
+            layout: hit_animation.texture_atlas_layout.clone(),
+            index: 0,
+        });
+        snake_head.1.flip_x=true;
+        commands.entity(snake_head.0).insert(AnimationTimer::new(36, 10)).despawn_children();
     }
 }
 
