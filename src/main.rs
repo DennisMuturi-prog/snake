@@ -12,7 +12,7 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             PhysicsPlugins::default(),
-            PhysicsDebugPlugin,
+            // PhysicsDebugPlugin,
         ))
         .add_systems(Startup, (setup, draw_snake_head).chain())
         .add_systems(Startup, draw_boundaries)
@@ -110,6 +110,8 @@ fn draw_snake_head(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     limb_resource: Res<LimbResource>,
     circle_mesh_and_material: Res<CircleMeshAndMaterial>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let texture = asset_server.load("sprites/snake_mouth_sprite.png");
 
@@ -215,16 +217,13 @@ fn draw_snake_head(
         texture,
         texture_atlas_layout,
     });
-    let line_sprite = Sprite {
-        color: Color::srgb(0.2, 0.7, 0.9),
-        custom_size: Some(Vec2 {
-            x: SNAKE_HEAD_LENGTH,
-            y: SNAKE_HEAD_THICKNESS,
-        }),
-        ..default()
-    };
+    let shape = Rectangle::new(SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS);
+    let mesh = meshes.add(shape);
+    let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
+    let material = materials.add(color);
     let snake_bundle = (
-        line_sprite,
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
         children![tounge_bundle, mouth_bundle, eye_bundle1, eye_bundle2,],
     );
     limb_resource.display(
@@ -506,7 +505,7 @@ fn detect_start_collision_with_apple(
 fn detect_start_collision_with_boundary(
     mut collision_reader: MessageReader<CollisionStart>,
     boundary: Query<Entity, With<Boundary>>,
-    mut snake_head: Single<(Entity,&mut Sprite), With<HeadOfSnake>>,
+    snake_head: Single<Entity, With<HeadOfSnake>>,
     mut commands: Commands,
     hit_sound: Res<HitSound>,
     hit_animation: Res<HitAnimationTextureAndAtlas>,
@@ -516,13 +515,24 @@ fn detect_start_collision_with_boundary(
             continue;
         }
         commands.spawn((AudioPlayer(hit_sound.clone()), PlaybackSettings::DESPAWN));
-        snake_head.1.image = hit_animation.texture.clone();
-        snake_head.1.texture_atlas = Some(TextureAtlas {
-            layout: hit_animation.texture_atlas_layout.clone(),
-            index: 0,
-        });
-        snake_head.1.flip_x=true;
-        commands.entity(snake_head.0).insert(AnimationTimer::new(36, 10)).despawn_children();
+        let hit_bundle = (
+            Sprite {
+                image: hit_animation.texture.clone(),
+                texture_atlas: Some(TextureAtlas {
+                    layout: hit_animation.texture_atlas_layout.clone(),
+                    index: 0,
+                }),
+                flip_x:true,
+                ..default()
+            },
+            Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(0.0, 0.0, 0.0)),
+            AnimationTimer::new(36, 20),
+        );
+        let animation_entity=commands.spawn(hit_bundle).id();
+        commands
+            .entity(snake_head.entity())
+            .despawn_children()
+            .add_child(animation_entity);
     }
 }
 
