@@ -14,6 +14,7 @@ fn main() {
             PhysicsDebugPlugin,
         ))
         .add_systems(Startup, (setup, draw_snake_head).chain())
+        .add_systems(Startup, draw_walls)
         .add_systems(Update, follow_mouse)
         .add_systems(Update, move_snake)
         .add_systems(
@@ -61,6 +62,9 @@ pub struct Tongue;
 
 #[derive(Component)]
 pub struct Eye;
+
+#[derive(Component)]
+pub struct Boundary;
 
 #[derive(Component)]
 struct AnimationTimer {
@@ -113,7 +117,7 @@ fn draw_snake_head(
             flip_x: true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-10.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-15.0, 0.0, 0.0)),
         AnimationTimer::new(15, 30),
         Mouth,
     );
@@ -138,7 +142,7 @@ fn draw_snake_head(
             flip_x: true,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-35.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-40.0, 0.0, 0.0)),
         AnimationTimer::new(21, 20),
         Tongue,
     );
@@ -254,6 +258,61 @@ fn execute_animations(time: Res<Time>, mut query: Query<(&mut AnimationTimer, &m
             }
         }
     }
+}
+fn draw_walls(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+){
+    let shape = Rectangle::new(20.0, 600.0);
+    let mesh = meshes.add(shape);
+    let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
+    let material = materials.add(color);
+    commands.spawn(
+        (
+        Mesh2d(mesh.clone()),
+        MeshMaterial2d(material.clone()),
+        Transform::from_xyz(-600.0,0.0,0.0),
+        RigidBody::Static,
+        Collider::rectangle(20.0, 600.0)
+    )
+    );
+
+    commands.spawn(
+        (
+        Mesh2d(mesh),
+        MeshMaterial2d(material.clone()),
+        Transform::from_xyz(600.0,0.0,0.0),
+        RigidBody::Static,
+        Collider::rectangle(20.0, 600.0)
+    )
+    );
+
+    let shape = Rectangle::new(1200.0, 20.0);
+    let mesh = meshes.add(shape);
+
+    commands.spawn(
+        (
+        Mesh2d(mesh.clone()),
+        MeshMaterial2d(material.clone()),
+        Transform::from_xyz(0.0,300.0,0.0),
+        RigidBody::Static,
+        Collider::rectangle(1200.0, 20.0)
+    )
+    );
+
+
+    commands.spawn(
+        (
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
+        Transform::from_xyz(0.0,-300.0,0.0),
+        RigidBody::Static,
+        Collider::rectangle(1200.0, 20.0)
+    )
+    );
+
+
 }
 
 fn setup(

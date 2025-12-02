@@ -132,6 +132,8 @@ impl Limb {
                         translation: midpoint.extend(0.0),
                         ..default()
                     },
+                    RigidBody::Dynamic,
+                    GravityScale(0.0),
                     LimbSegment(i),
                 ));
             }
