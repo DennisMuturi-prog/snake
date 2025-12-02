@@ -21,7 +21,8 @@ fn main() {
             (
                 detect_start_collision_with_apple_field,
                 detect_collision_with_apple,
-                detect_start_collision_with_apple
+                detect_start_collision_with_apple,
+                trigger_tounge_and_eyes_animation
             ),
         )
         .add_systems(Update, execute_animations)
@@ -30,6 +31,9 @@ fn main() {
 
 #[derive(Resource, Deref, DerefMut)]
 struct LimbResource(Limb);
+
+#[derive(Resource, Deref, DerefMut)]
+struct ToungeAndEyesAnimationTimer(Timer);
 
 #[derive(Resource)]
 struct CircleMeshAndMaterial {
@@ -53,13 +57,19 @@ pub struct AppleField;
 pub struct Mouth;
 
 #[derive(Component)]
+pub struct Tongue;
+
+#[derive(Component)]
+pub struct Eye;
+
+#[derive(Component)]
 struct AnimationTimer {
     frame_count: usize,
     timer: Timer,
-    fps:u8
+    fps: u8,
 }
 impl AnimationTimer {
-    fn new(frame_count: usize,fps:u8) -> Self {
+    fn new(frame_count: usize, fps: u8) -> Self {
         Self {
             frame_count,
             fps,
@@ -104,7 +114,7 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-10.0, 0.0, 0.0)),
-        AnimationTimer::new(15,30),
+        AnimationTimer::new(15, 30),
         Mouth,
     );
 
@@ -129,7 +139,8 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-35.0, 0.0, 0.0)),
-        AnimationTimer::new(21,20),
+        AnimationTimer::new(21, 20),
+        Tongue,
     );
 
     let texture = asset_server.load("sprites/snake_eye_sprite.png");
@@ -153,7 +164,8 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 0.0)),
-        AnimationTimer::new(9,20),
+        AnimationTimer::new(9, 20),
+        Eye,
     );
 
     let eye_bundle2 = (
@@ -167,7 +179,8 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 0.0)),
-        AnimationTimer::new(9,20),
+        AnimationTimer::new(9, 20),
+        Eye,
     );
 
     let texture = asset_server.load("sprites/snake_hit.png");
@@ -190,7 +203,7 @@ fn draw_snake_head(
             ..default()
         },
         Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-200.0, 0.0, 0.0)),
-        AnimationTimer::new(36,20),
+        AnimationTimer::new(36, 20),
     );
     commands.spawn(hit_bundle);
     let shape = Rectangle::new(SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS);
@@ -209,6 +222,19 @@ fn draw_snake_head(
         circle_mesh_and_material.material.clone(),
         snake_bundle,
     );
+}
+
+fn trigger_tounge_and_eyes_animation(
+    mut tounge_and_eyes_animation_timer: ResMut<ToungeAndEyesAnimationTimer>,
+    tounge_and_eyes_query: Query<&mut AnimationTimer, Or<(With<Tongue>, With<Eye>)>>,
+    time: Res<Time>,
+) {
+    tounge_and_eyes_animation_timer.tick(time.delta());
+    if tounge_and_eyes_animation_timer.just_finished() {
+        for mut animation in tounge_and_eyes_query {
+            animation.timer = AnimationTimer::timer_from_fps(animation.fps)
+        }
+    }
 }
 
 fn execute_animations(time: Res<Time>, mut query: Query<(&mut AnimationTimer, &mut Sprite)>) {
@@ -250,7 +276,7 @@ fn setup(
         NO_OF_SNAKE_PARTS,
         Vec2 {
             x: 200.0,
-            y: -200.0,
+            y: -100.0,
         },
     );
     commands.insert_resource(LimbResource(limb));
@@ -272,7 +298,7 @@ fn setup(
         Apple,
         children![(
             RigidBody::Kinematic,
-            Collider::circle(130.0),
+            Collider::circle(150.0),
             Sensor,
             AppleField
         )],
@@ -280,6 +306,8 @@ fn setup(
 
     let apple_crunch_sound = asset_server.load("sounds/crunch.wav");
     commands.insert_resource(CrunchSound(apple_crunch_sound));
+
+    commands.insert_resource(ToungeAndEyesAnimationTimer(Timer::from_seconds(5.0, TimerMode::Repeating)));
 
 }
 
@@ -391,9 +419,9 @@ fn detect_start_collision_with_apple(
     mut commands: Commands,
     crunch_sound: Res<CrunchSound>,
 ) {
-    let apple= apple.entity();
+    let apple = apple.entity();
     for event in collision_reader.read() {
-        if event.collider1 != apple && event.collider2 != apple{
+        if event.collider1 != apple && event.collider2 != apple {
             continue;
         }
         commands.spawn((AudioPlayer(crunch_sound.clone()), PlaybackSettings::DESPAWN));
