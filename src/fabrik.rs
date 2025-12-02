@@ -132,8 +132,8 @@ impl Limb {
                         translation: midpoint.extend(0.0),
                         ..default()
                     },
-                    RigidBody::Dynamic,
-                    GravityScale(0.0),
+                    RigidBody::Kinematic,
+                    Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
                     LimbSegment(i),
                 ));
             }
@@ -243,6 +243,8 @@ impl Limb {
                     rotation: Quat::from_rotation_z(angle),
                     ..default()
                 },
+                RigidBody::Kinematic,
+                Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
                 LimbSegment(i),
             ));
 

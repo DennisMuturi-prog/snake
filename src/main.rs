@@ -88,6 +88,11 @@ impl AnimationTimer {
 const SNAKE_SPEED: f32 = 10.0;
 
 const NO_OF_SNAKE_PARTS: usize = 10;
+const WALL_HEIGHT:f32=600.0;
+const WALL_THICKNESS:f32=20.0;
+
+const FLOOR_THICKNESS:f32=WALL_THICKNESS;
+const WALL_RIGHT_POSITION:f32=600.0;
 fn draw_snake_head(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -264,7 +269,7 @@ fn draw_walls(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ){
-    let shape = Rectangle::new(20.0, 600.0);
+    let shape = Rectangle::new(WALL_THICKNESS, WALL_HEIGHT);
     let mesh = meshes.add(shape);
     let color = Color::Srgba(Srgba::rgb(1.0, 0.647, 0.0));
     let material = materials.add(color);
@@ -272,9 +277,9 @@ fn draw_walls(
         (
         Mesh2d(mesh.clone()),
         MeshMaterial2d(material.clone()),
-        Transform::from_xyz(-600.0,0.0,0.0),
+        Transform::from_xyz(-WALL_RIGHT_POSITION,0.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(20.0, 600.0)
+        Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT)
     )
     );
 
@@ -282,22 +287,22 @@ fn draw_walls(
         (
         Mesh2d(mesh),
         MeshMaterial2d(material.clone()),
-        Transform::from_xyz(600.0,0.0,0.0),
+        Transform::from_xyz(WALL_RIGHT_POSITION,0.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(20.0, 600.0)
+        Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT)
     )
     );
 
-    let shape = Rectangle::new(1200.0, 20.0);
+    let shape = Rectangle::new(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS);
     let mesh = meshes.add(shape);
 
     commands.spawn(
         (
         Mesh2d(mesh.clone()),
         MeshMaterial2d(material.clone()),
-        Transform::from_xyz(0.0,300.0,0.0),
+        Transform::from_xyz(0.0,WALL_HEIGHT/2.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(1200.0, 20.0)
+        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS)
     )
     );
 
@@ -306,9 +311,9 @@ fn draw_walls(
         (
         Mesh2d(mesh),
         MeshMaterial2d(material),
-        Transform::from_xyz(0.0,-300.0,0.0),
+        Transform::from_xyz(0.0,-WALL_HEIGHT/2.0,0.0),
         RigidBody::Static,
-        Collider::rectangle(1200.0, 20.0)
+        Collider::rectangle(WALL_RIGHT_POSITION*2.0, FLOOR_THICKNESS)
     )
     );
 
@@ -406,7 +411,12 @@ fn move_snake(
     if snake_velocity.0.length() == 0.0 {
         return;
     }
+    let right_bound_x=WALL_RIGHT_POSITION-WALL_THICKNESS/2.0;
+    let upper_bound_y= WALL_HEIGHT/2.0-FLOOR_THICKNESS/2.0;
     let target = limb_resource.get_last_segment_position() + snake_velocity.0;
+    if target.x>=right_bound_x ||  target.x<=-right_bound_x || target.y>=upper_bound_y || target.y<=-upper_bound_y{
+        snake_velocity.0=Vec2::ZERO;
+    } 
     limb_resource.set_target(target);
     limb_resource.forward_fabrik();
     limb_resource.update_visuals(joint_query, limb_query);
@@ -465,8 +475,10 @@ fn detect_collision_with_apple(
         );
 
         let mut rng = rand::rng();
-        let x: f32 = rng.random_range(-300.0..=300.0);
-        let y: f32 = rng.random_range(-300.0..=300.0);
+        let right_bound_x=WALL_RIGHT_POSITION-WALL_THICKNESS/2.0-20.0;
+        let upper_bound_y= WALL_HEIGHT/2.0-FLOOR_THICKNESS/2.0 -20.0;
+        let x: f32 = rng.random_range(-right_bound_x..=right_bound_x);
+        let y: f32 = rng.random_range(-upper_bound_y..=upper_bound_y);
         apple.1.translation.x = x;
         apple.1.translation.y = y;
     }
