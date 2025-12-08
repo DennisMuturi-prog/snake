@@ -267,4 +267,25 @@ impl Limb {
         self.segments
             .push_front(Segment::new(new_point, SNAKE_PART_LENGTH));
     }
+    pub fn reset_limb(&mut self,starting_position:Vec2){
+        let mut sum = 0.0;
+        let no_of_segments=self.segments.len();
+
+        for i in 0..no_of_segments {
+            if i == no_of_segments - 2 {
+                self.segments[i].set_position(Vec2 {
+                        x: starting_position.x + sum,
+                        y: starting_position.y,
+                    });
+                sum -= SNAKE_HEAD_LENGTH;
+            } else {
+                self.segments[i].set_position(Vec2 {
+                        x: starting_position.x + sum,
+                        y: starting_position.y,
+                    });
+                sum -= SNAKE_PART_LENGTH;
+            }
+        }
+        self.target = self.segments[no_of_segments - 1].position;
+    }
 }
