@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use avian2d::prelude::*;
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{input_focus::InputFocus, prelude::*, window::PrimaryWindow};
 use rand::Rng;
 use snake::fabrik::{
     HeadOfSnake, Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH,
@@ -10,14 +10,26 @@ use snake::fabrik::{
 fn main() {
     App::new()
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: String::from("Snake"),
+                    position: WindowPosition::Centered(MonitorSelection::Primary),
+                    ..default()
+                }),
+                ..default()
+            }),
             PhysicsPlugins::default(),
             // PhysicsDebugPlugin,
         ))
+        .init_resource::<InputFocus>()
+        .init_state::<GameState>()
+        .add_systems(OnEnter(GameState::Restart), (restart_game, reset_snake_position).chain())
+        .add_systems(OnEnter(GameState::GameOver), game_over_screen)
         .add_systems(Startup, (setup, draw_snake_head).chain())
         .add_systems(Startup, draw_boundaries)
-        .add_systems(Update, follow_mouse)
-        .add_systems(Update, move_snake)
+        // .add_systems(Update, follow_mouse.run_if(in_state(GameState::Start).or(in_state(GameState::Restart))))
+        .add_systems(Update, move_snake.run_if(in_state(GameState::Start).or(in_state(GameState::Restart))))
+        .add_systems(Update, button_system.run_if(in_state(GameState::GameOver)))
         .add_systems(
             Update,
             (
@@ -34,6 +46,16 @@ fn main() {
 
 #[derive(Resource, Deref, DerefMut)]
 struct LimbResource(Limb);
+
+#[derive(Resource)]
+struct HeadItems {
+    eye_texture: Handle<Image>,
+    eye_texture_atlas_layout: Handle<TextureAtlasLayout>,
+    mouth_texture: Handle<Image>,
+    mouth_texture_atlas_layout: Handle<TextureAtlasLayout>,
+    tongue_texture: Handle<Image>,
+    tongue_texture_atlas_layout: Handle<TextureAtlasLayout>,
+}
 
 #[derive(Resource, Deref, DerefMut)]
 struct ToungeAndEyesAnimationTimer(Timer);
@@ -96,6 +118,14 @@ impl AnimationTimer {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+enum GameState {
+    #[default]
+    Start,
+    Restart,
+    GameOver,
+}
+
 const SNAKE_SPEED: f32 = 10.0;
 
 const NO_OF_SNAKE_PARTS: usize = 10;
@@ -113,7 +143,7 @@ fn draw_snake_head(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let texture = asset_server.load("sprites/snake_mouth_sprite.png");
+    let mouth_texture = asset_server.load("sprites/snake_mouth_sprite.png");
 
     let layout = TextureAtlasLayout::from_grid(
         UVec2 { x: 33, y: 53 },
@@ -122,12 +152,12 @@ fn draw_snake_head(
         Some(UVec2 { x: 3, y: 0 }),
         None,
     );
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let mouth_texture_atlas_layout = texture_atlas_layouts.add(layout);
     let mouth_bundle = (
         Sprite {
-            image: texture.clone(),
+            image: mouth_texture.clone(),
             texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout.clone(),
+                layout: mouth_texture_atlas_layout.clone(),
                 index: 0,
             }),
             flip_x: true,
@@ -138,7 +168,7 @@ fn draw_snake_head(
         Mouth,
     );
 
-    let texture = asset_server.load("sprites/snake_tounge.png");
+    let tongue_texture = asset_server.load("sprites/snake_tounge.png");
 
     let layout = TextureAtlasLayout::from_grid(
         UVec2 { x: 47, y: 22 },
@@ -147,12 +177,12 @@ fn draw_snake_head(
         Some(UVec2 { x: 2, y: 2 }),
         Some(UVec2 { x: 0, y: 3 }),
     );
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let tongue_texture_atlas_layout = texture_atlas_layouts.add(layout);
     let tounge_bundle = (
         Sprite {
-            image: texture.clone(),
+            image: tongue_texture.clone(),
             texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout.clone(),
+                layout: tongue_texture_atlas_layout.clone(),
                 index: 0,
             }),
             flip_x: true,
@@ -163,7 +193,7 @@ fn draw_snake_head(
         Tongue,
     );
 
-    let texture = asset_server.load("sprites/snake_eye_sprite.png");
+    let eye_texture = asset_server.load("sprites/snake_eye_sprite.png");
 
     let layout = TextureAtlasLayout::from_grid(
         UVec2 { x: 26, y: 28 },
@@ -172,12 +202,12 @@ fn draw_snake_head(
         Some(UVec2 { x: 3, y: 0 }),
         None,
     );
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let eye_texture_atlas_layout = texture_atlas_layouts.add(layout);
     let eye_bundle1 = (
         Sprite {
-            image: texture.clone(),
+            image: eye_texture.clone(),
             texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout.clone(),
+                layout: eye_texture_atlas_layout.clone(),
                 index: 0,
             }),
             flip_x: true,
@@ -190,9 +220,9 @@ fn draw_snake_head(
 
     let eye_bundle2 = (
         Sprite {
-            image: texture.clone(),
+            image: eye_texture.clone(),
             texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout.clone(),
+                layout: eye_texture_atlas_layout.clone(),
                 index: 0,
             }),
             flip_x: true,
@@ -202,6 +232,14 @@ fn draw_snake_head(
         AnimationTimer::new(9, 20),
         Eye,
     );
+    commands.insert_resource(HeadItems {
+        eye_texture,
+        eye_texture_atlas_layout,
+        mouth_texture,
+        mouth_texture_atlas_layout,
+        tongue_texture,
+        tongue_texture_atlas_layout,
+    });
 
     let texture = asset_server.load("sprites/snake_hit.png");
 
@@ -509,6 +547,8 @@ fn detect_start_collision_with_boundary(
     mut commands: Commands,
     hit_sound: Res<HitSound>,
     hit_animation: Res<HitAnimationTextureAndAtlas>,
+    mut game_state: ResMut<NextState<GameState>>,
+
 ) {
     for event in collision_reader.read() {
         if boundary.get(event.collider1).is_err() && boundary.get(event.collider2).is_err() {
@@ -522,17 +562,21 @@ fn detect_start_collision_with_boundary(
                     layout: hit_animation.texture_atlas_layout.clone(),
                     index: 0,
                 }),
-                flip_x:true,
+                flip_x: true,
                 ..default()
             },
             Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(0.0, 0.0, 0.0)),
             AnimationTimer::new(36, 20),
         );
-        let animation_entity=commands.spawn(hit_bundle).id();
+        let animation_entity = commands.spawn(hit_bundle).id();
         commands
             .entity(snake_head.entity())
             .despawn_children()
             .add_child(animation_entity);
+
+        game_state.set(GameState::GameOver);
+
+        
     }
 }
 
@@ -547,5 +591,176 @@ fn detect_start_collision_with_apple_field(
             continue;
         }
         mouth.timer = AnimationTimer::timer_from_fps(mouth.fps)
+    }
+}
+
+fn game_over_screen(mut commands: Commands) {
+    commands.spawn(button()
+
+);
+}
+fn restart_game(
+    snake_head: Single<Entity, With<HeadOfSnake>>,
+    mut commands: Commands,
+    head_items: Res<HeadItems>,
+    mut limb_resource: ResMut<LimbResource>,
+) {
+    let mouth_bundle = (
+        Sprite {
+            image: head_items.mouth_texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: head_items.mouth_texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            flip_x: true,
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-15.0, 0.0, 10.0)),
+        AnimationTimer::new(15, 30),
+        Mouth,
+    );
+    let mouth = commands.spawn(mouth_bundle).id();
+
+    let tongue_bundle = (
+        Sprite {
+            image: head_items.tongue_texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: head_items.tongue_texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            flip_x: true,
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(-40.0, 0.0, 10.0)),
+        AnimationTimer::new(21, 20),
+        Tongue,
+    );
+    let tongue = commands.spawn(tongue_bundle).id();
+
+    let eye_bundle1 = (
+        Sprite {
+            image: head_items.eye_texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: head_items.eye_texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            flip_x: true,
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, 10.0, 10.0)),
+        AnimationTimer::new(9, 20),
+        Eye,
+    );
+
+    let eye1 = commands.spawn(eye_bundle1).id();
+
+    let eye_bundle2 = (
+        Sprite {
+            image: head_items.eye_texture.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: head_items.eye_texture_atlas_layout.clone(),
+                index: 0,
+            }),
+            flip_x: true,
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(15.0, -10.0, 10.0)),
+        AnimationTimer::new(9, 20),
+        Eye,
+    );
+    let eye2 = commands.spawn(eye_bundle2).id();
+
+    commands
+        .entity(snake_head.entity())
+        .despawn_children()
+        .add_children(&[mouth, tongue, eye1, eye2]);
+
+    limb_resource.reset_limb(Vec2 {
+        x: 200.0,
+        y: -100.0,
+    });
+}
+
+fn reset_snake_position(
+    joint_query: Query<(&mut Transform, &Joint), JointFilter>,
+    limb_query: Query<(&mut Transform, &LimbSegment), LimbFilter>,
+    limb_resource: Res<LimbResource>
+
+){
+    limb_resource.update_visuals(joint_query,limb_query);
+}
+
+fn button() -> impl Bundle {
+    (
+        DespawnOnExit(GameState::GameOver),
+        Node {
+            width: percent(100),
+            height: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        children![(
+            Button,
+            Node {
+                width: px(150),
+                height: px(65),
+                border: UiRect::all(px(5)),
+                // horizontally center child text
+                justify_content: JustifyContent::Center,
+                // vertically center child text
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BorderColor::all(Color::WHITE),
+            BorderRadius::MAX,
+            BackgroundColor(Color::BLACK),
+            children![(
+                Text::new("Restart"),
+                TextFont {
+                    font_size: 33.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                TextShadow::default(),
+            )]
+        )],
+    )
+}
+
+
+fn button_system(
+    mut input_focus: ResMut<InputFocus>,
+    mut interaction_query: Query<
+        (
+            Entity,
+            &Interaction,
+            &mut Button,
+        ),
+        Changed<Interaction>,
+    >,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    for (entity, interaction, mut button) in
+        &mut interaction_query
+    {
+
+        match *interaction {
+            Interaction::Pressed => {
+                input_focus.set(entity);
+
+                game_state.set(GameState::Restart);
+
+                // The accessibility system's only update the button's state when the `Button` component is marked as changed.
+                button.set_changed();
+            }
+            Interaction::Hovered => {
+                input_focus.set(entity);
+                button.set_changed();
+            }
+            Interaction::None => {
+                input_focus.clear();
+            }
+        }
     }
 }
