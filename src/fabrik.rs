@@ -15,8 +15,8 @@ pub const NO_OF_SNAKE_PARTS: usize = 10;
 const SNAKE_PART_LENGTH: f32 = 20.0;
 
 const SNAKE_PART_THICKNESS: f32 = 5.0;
-pub const SNAKE_HEAD_THICKNESS: f32 = 40.0;
-pub const SNAKE_HEAD_LENGTH: f32 = 50.0;
+pub const SNAKE_HEAD_THICKNESS: f32 = 35.0;
+pub const SNAKE_HEAD_LENGTH: f32 = 40.0;
 
 #[derive(Component)]
 pub struct LimbSegment(pub usize);
@@ -43,6 +43,10 @@ impl Segment {
 
     pub fn set_position(&mut self, position: Vec2) {
         self.position = position;
+    }
+    
+    pub fn set_length(&mut self, length: f32) {
+        self.length = length;
     }
 }
 
@@ -280,6 +284,7 @@ impl Limb {
                         x: starting_position.x + sum,
                         y: starting_position.y,
                     });
+                    self.segments[i].set_length(SNAKE_HEAD_LENGTH);
                 sum -= SNAKE_HEAD_LENGTH;
             } else {
                 self.segments[i].set_position(Vec2 {
@@ -289,6 +294,7 @@ impl Limb {
                 sum -= SNAKE_PART_LENGTH;
             }
         }
+        
         self.target = self.segments[no_of_segments - 1].position;
     }
 }

@@ -703,7 +703,7 @@ fn despawn_snake_parts(
     }
 
     for (entity, limb_index) in limb_query {
-        if limb_index.0 >= NO_OF_SNAKE_PARTS - 1 {
+        if limb_index.0 >= NO_OF_SNAKE_PARTS - 2 {
             commands.entity(entity).despawn();
         }
     }
