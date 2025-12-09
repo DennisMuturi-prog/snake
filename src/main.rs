@@ -4,8 +4,8 @@ use avian2d::prelude::*;
 use bevy::{input_focus::InputFocus, prelude::*, window::PrimaryWindow};
 use rand::Rng;
 use snake::fabrik::{
-    HeadOfSnake, Joint, JointFilter, Limb, LimbFilter, LimbSegment, NO_OF_SNAKE_PARTS,
-    SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS,
+    GameLayer, HeadOfSnake, Joint, JointFilter, Limb, LimbFilter, LimbSegment, NO_OF_SNAKE_PARTS,
+    SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS, SnakePart,
 };
 fn main() {
     App::new()
@@ -19,7 +19,7 @@ fn main() {
                 ..default()
             }),
             PhysicsPlugins::default(),
-            // PhysicsDebugPlugin,
+            PhysicsDebugPlugin,
         ))
         .init_resource::<InputFocus>()
         .init_state::<GameState>()
@@ -27,17 +27,13 @@ fn main() {
             OnEnter(GameState::Restart),
             (restart_game, despawn_snake_parts, reset_snake_position).chain(),
         )
-        .add_systems(
-            OnEnter(GameState::Restart),
-            reset_scores,
-        )
-        
+        .add_systems(OnEnter(GameState::Restart), reset_scores)
         .add_systems(
             OnEnter(GameState::GameOver),
             (game_over_screen, reset_velocity),
         )
         .add_systems(Startup, (setup, draw_snake_head).chain())
-        .add_systems(Startup, (draw_boundaries,setup_scoreboard))
+        .add_systems(Startup, (draw_boundaries, setup_scoreboard))
         // .add_systems(Update, follow_mouse.run_if(in_state(GameState::Start).or(in_state(GameState::Restart))))
         .add_systems(
             Update,
@@ -49,10 +45,12 @@ fn main() {
             (
                 detect_start_collision_with_apple_field,
                 detect_collision_with_apple,
-                detect_start_collision_with_apple,
+                detect_end_collision_with_apple,
                 trigger_tounge_and_eyes_animation,
                 detect_start_collision_with_boundary,
-            ),
+                detect_start_collision_with_snake_parts,
+            )
+                .run_if(in_state(GameState::Start).or(in_state(GameState::Restart))),
         )
         .add_systems(Update, execute_animations)
         .run();
@@ -141,9 +139,9 @@ struct ScoreboardUi;
 struct HighScoreUi;
 
 #[derive(Resource)]
-struct PlayerScore{
-    current_score:usize,
-    high_score:usize
+struct PlayerScore {
+    current_score: usize,
+    high_score: usize,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
@@ -168,9 +166,7 @@ const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
 const SCORE_COLOR: Color = Color::srgb(1.0, 0.5, 0.5);
 type TongueAndEyesFilter = Or<(With<Tongue>, With<Eye>)>;
 
-
 fn setup_scoreboard(mut commands: Commands) {
-
     commands.spawn((
         Text::new("Score: "),
         TextFont {
@@ -217,9 +213,9 @@ fn setup_scoreboard(mut commands: Commands) {
             TextColor(SCORE_COLOR),
         )],
     ));
-    commands.insert_resource(PlayerScore{
-        current_score:0,
-        high_score:0
+    commands.insert_resource(PlayerScore {
+        current_score: 0,
+        high_score: 0,
     });
 }
 fn draw_snake_head(
@@ -406,6 +402,10 @@ fn draw_boundaries(
         Transform::from_xyz(-WALL_RIGHT_POSITION, 0.0, 0.0),
         RigidBody::Static,
         Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT),
+        CollisionLayers::new(
+            GameLayer::Boundary,
+            [GameLayer::Default, GameLayer::SnakeHead],
+        ),
         Boundary,
     ));
 
@@ -415,6 +415,10 @@ fn draw_boundaries(
         Transform::from_xyz(WALL_RIGHT_POSITION, 0.0, 0.0),
         RigidBody::Static,
         Collider::rectangle(WALL_THICKNESS, WALL_HEIGHT),
+        CollisionLayers::new(
+            GameLayer::Boundary,
+            [GameLayer::Default, GameLayer::SnakeHead],
+        ),
         Boundary,
     ));
 
@@ -427,6 +431,10 @@ fn draw_boundaries(
         Transform::from_xyz(0.0, WALL_HEIGHT / 2.0, 0.0),
         RigidBody::Static,
         Collider::rectangle(WALL_RIGHT_POSITION * 2.0, FLOOR_THICKNESS),
+        CollisionLayers::new(
+            GameLayer::Boundary,
+            [GameLayer::Default, GameLayer::SnakeHead],
+        ),
         Boundary,
     ));
 
@@ -436,6 +444,10 @@ fn draw_boundaries(
         Transform::from_xyz(0.0, -WALL_HEIGHT / 2.0, 0.0),
         RigidBody::Static,
         Collider::rectangle(WALL_RIGHT_POSITION * 2.0, FLOOR_THICKNESS),
+        CollisionLayers::new(
+            GameLayer::Boundary,
+            [GameLayer::Default, GameLayer::SnakeHead],
+        ),
         Boundary,
     ));
 }
@@ -475,14 +487,19 @@ fn setup(
             image: asset_server.load("sprites/apple.png"),
             ..default()
         },
-        Transform::from_xyz(20.0, 50.0, -10.0),
+        Transform::from_xyz(50.0, 120.0, -10.0),
         RigidBody::Kinematic,
         Collider::circle(15.0),
+        CollisionLayers::new(GameLayer::Apple, [GameLayer::Default, GameLayer::SnakeHead]),
         Sensor,
         Apple,
         children![(
             RigidBody::Kinematic,
             Collider::circle(150.0),
+            CollisionLayers::new(
+                GameLayer::AppleField,
+                [GameLayer::Default, GameLayer::SnakeHead],
+            ),
             Sensor,
             AppleField
         )],
@@ -612,7 +629,7 @@ fn detect_collision_with_apple(
     mut commands: Commands,
     circle_mesh_and_material: Res<CircleMeshAndMaterial>,
 ) {
-    let no_of_snake_parts_to_add = 1;
+    let no_of_snake_parts_to_add = 2;
     for event in collision_reader.read() {
         if event.collider1 != apple.0 && event.collider2 != apple.0 {
             continue;
@@ -640,7 +657,7 @@ fn detect_collision_with_apple(
     }
 }
 
-fn detect_start_collision_with_apple(
+fn detect_end_collision_with_apple(
     mut collision_reader: MessageReader<CollisionEnd>,
     apple: Single<Entity, With<Apple>>,
     mut commands: Commands,
@@ -655,7 +672,7 @@ fn detect_start_collision_with_apple(
             continue;
         }
         commands.spawn((AudioPlayer(crunch_sound.clone()), PlaybackSettings::DESPAWN));
-        player_score.current_score+=1;
+        player_score.current_score += 1;
         *writer.text(*score_root, 1) = player_score.current_score.to_string();
     }
 }
@@ -697,6 +714,46 @@ fn detect_start_collision_with_boundary(
     }
 }
 
+fn detect_start_collision_with_snake_parts(
+    mut collision_reader: MessageReader<CollisionStart>,
+    snake_parts: Query<Entity, With<SnakePart>>,
+    snake_head: Single<Entity, With<HeadOfSnake>>,
+    mut commands: Commands,
+    hit_sound: Res<HitSound>,
+    hit_animation: Res<HitAnimationTextureAndAtlas>,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    for event in collision_reader.read() {
+        if snake_parts.get(event.collider1).is_err() && snake_parts.get(event.collider2).is_err() {
+            continue;
+        }
+        // if (snake_parts.get(event.collider1).is_ok() && event.collider2==snake_head.entity()) ||  {
+        println!("collision happened");
+        commands.spawn((AudioPlayer(hit_sound.clone()), PlaybackSettings::DESPAWN));
+        let hit_bundle = (
+            Sprite {
+                image: hit_animation.texture.clone(),
+                texture_atlas: Some(TextureAtlas {
+                    layout: hit_animation.texture_atlas_layout.clone(),
+                    index: 0,
+                }),
+                flip_x: true,
+                ..default()
+            },
+            Transform::from_scale(Vec3::splat(1.0)).with_translation(Vec3::new(0.0, 0.0, 0.0)),
+            AnimationTimer::new(36, 20),
+        );
+        let animation_entity = commands.spawn(hit_bundle).id();
+        commands
+            .entity(snake_head.entity())
+            .despawn_children()
+            .add_child(animation_entity);
+
+        game_state.set(GameState::GameOver);
+        // }
+    }
+}
+
 fn detect_start_collision_with_apple_field(
     mut collision_reader: MessageReader<CollisionStart>,
     mut mouth: Single<&mut AnimationTimer, With<Mouth>>,
@@ -722,12 +779,11 @@ fn reset_scores(
     high_score_root: Single<Entity, (With<HighScoreUi>, With<Text>)>,
     mut writer: TextUiWriter,
     mut player_score: ResMut<PlayerScore>,
-){
-    player_score.high_score=cmp::max(player_score.current_score, player_score.high_score);
-    player_score.current_score=0;
+) {
+    player_score.high_score = cmp::max(player_score.current_score, player_score.high_score);
+    player_score.current_score = 0;
     *writer.text(*score_root, 1) = player_score.current_score.to_string();
     *writer.text(*high_score_root, 1) = player_score.high_score.to_string();
-
 }
 fn restart_game(
     snake_head: Single<Entity, With<HeadOfSnake>>,

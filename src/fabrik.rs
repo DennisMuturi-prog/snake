@@ -6,11 +6,24 @@ use bevy::prelude::*;
 #[derive(Component)]
 pub struct Joint(pub usize);
 
+#[derive(PhysicsLayer, Default)]
+pub enum GameLayer {
+    #[default]
+    Default, // Layer 0 - the default layer that objects are assigned to
+    Apple,      // Layer 1
+    AppleField, // Layer 2
+    Boundary,
+    SnakeHead,
+    SnakePart, // Layer 3
+}
+
+#[derive(Component)]
+pub struct SnakePart;
+
 pub type JointFilter = (With<Joint>, Without<LimbSegment>);
 
 pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
 pub const NO_OF_SNAKE_PARTS: usize = 10;
-
 
 const SNAKE_PART_LENGTH: f32 = 20.0;
 
@@ -44,7 +57,7 @@ impl Segment {
     pub fn set_position(&mut self, position: Vec2) {
         self.position = position;
     }
-    
+
     pub fn set_length(&mut self, length: f32) {
         self.length = length;
     }
@@ -123,6 +136,16 @@ impl Limb {
             HeadOfSnake,
             RigidBody::Kinematic,
             Collider::rectangle(SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS),
+            CollisionLayers::new(
+                GameLayer::SnakeHead,
+                [
+                    GameLayer::Default,
+                    GameLayer::Boundary,
+                    GameLayer::SnakePart,
+                    GameLayer::Apple,
+                    GameLayer::AppleField,
+                ],
+            ),
             CollisionEventsEnabled,
             snake_bundle,
         ));
@@ -139,9 +162,15 @@ impl Limb {
                         ..default()
                     },
                     RigidBody::Kinematic,
-                    Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
+                    Collider::rectangle(SNAKE_PART_LENGTH-10.0, SNAKE_PART_THICKNESS),
+                    CollisionLayers::new(
+                        GameLayer::SnakePart,
+                        [GameLayer::Default, GameLayer::SnakeHead],
+                    ),
                     LimbSegment(i),
+                    SnakePart,
                 ));
+                
             }
 
             commands.spawn((
@@ -250,7 +279,12 @@ impl Limb {
                     ..default()
                 },
                 RigidBody::Kinematic,
-                Collider::rectangle(SNAKE_PART_LENGTH, SNAKE_PART_THICKNESS),
+                Collider::rectangle(SNAKE_PART_LENGTH-10.0, SNAKE_PART_THICKNESS),
+                CollisionLayers::new(
+                        GameLayer::SnakePart,
+                        [GameLayer::Default, GameLayer::SnakeHead],
+                ),
+                SnakePart,
                 LimbSegment(i),
             ));
 
@@ -273,28 +307,28 @@ impl Limb {
         self.segments
             .push_front(Segment::new(new_point, SNAKE_PART_LENGTH));
     }
-    pub fn reset_limb(&mut self,starting_position:Vec2){
+    pub fn reset_limb(&mut self, starting_position: Vec2) {
         self.segments.truncate(NO_OF_SNAKE_PARTS);
         let mut sum = 0.0;
-        let no_of_segments=self.segments.len();
+        let no_of_segments = self.segments.len();
 
         for i in 0..no_of_segments {
             if i == no_of_segments - 2 {
                 self.segments[i].set_position(Vec2 {
-                        x: starting_position.x + sum,
-                        y: starting_position.y,
-                    });
-                    self.segments[i].set_length(SNAKE_HEAD_LENGTH);
+                    x: starting_position.x + sum,
+                    y: starting_position.y,
+                });
+                self.segments[i].set_length(SNAKE_HEAD_LENGTH);
                 sum -= SNAKE_HEAD_LENGTH;
             } else {
                 self.segments[i].set_position(Vec2 {
-                        x: starting_position.x + sum,
-                        y: starting_position.y,
-                    });
+                    x: starting_position.x + sum,
+                    y: starting_position.y,
+                });
                 sum -= SNAKE_PART_LENGTH;
             }
         }
-        
+
         self.target = self.segments[no_of_segments - 1].position;
     }
 }
