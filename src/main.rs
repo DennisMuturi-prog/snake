@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{cmp, time::Duration};
 
 use avian2d::prelude::*;
 use bevy::{input_focus::InputFocus, prelude::*, window::PrimaryWindow};
@@ -28,11 +28,16 @@ fn main() {
             (restart_game, despawn_snake_parts, reset_snake_position).chain(),
         )
         .add_systems(
+            OnEnter(GameState::Restart),
+            reset_scores,
+        )
+        
+        .add_systems(
             OnEnter(GameState::GameOver),
             (game_over_screen, reset_velocity),
         )
         .add_systems(Startup, (setup, draw_snake_head).chain())
-        .add_systems(Startup, draw_boundaries)
+        .add_systems(Startup, (draw_boundaries,setup_scoreboard))
         // .add_systems(Update, follow_mouse.run_if(in_state(GameState::Start).or(in_state(GameState::Restart))))
         .add_systems(
             Update,
@@ -129,6 +134,18 @@ impl AnimationTimer {
     }
 }
 
+#[derive(Component)]
+struct ScoreboardUi;
+
+#[derive(Component)]
+struct HighScoreUi;
+
+#[derive(Resource)]
+struct PlayerScore{
+    current_score:usize,
+    high_score:usize
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 enum GameState {
     #[default]
@@ -144,7 +161,67 @@ const WALL_THICKNESS: f32 = 20.0;
 
 const FLOOR_THICKNESS: f32 = WALL_THICKNESS;
 const WALL_RIGHT_POSITION: f32 = 600.0;
+const SCOREBOARD_FONT_SIZE: f32 = 33.0;
+const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
+const HIGH_SCORE_TEXT_PADDING: Val = Val::Px(200.0);
+const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
+const SCORE_COLOR: Color = Color::srgb(1.0, 0.5, 0.5);
 type TongueAndEyesFilter = Or<(With<Tongue>, With<Eye>)>;
+
+
+fn setup_scoreboard(mut commands: Commands) {
+
+    commands.spawn((
+        Text::new("Score: "),
+        TextFont {
+            font_size: SCOREBOARD_FONT_SIZE,
+            ..default()
+        },
+        TextColor(TEXT_COLOR),
+        ScoreboardUi,
+        Node {
+            position_type: PositionType::Absolute,
+            top: SCOREBOARD_TEXT_PADDING,
+            left: SCOREBOARD_TEXT_PADDING,
+            ..default()
+        },
+        children![(
+            TextSpan::new("0"),
+            TextFont {
+                font_size: SCOREBOARD_FONT_SIZE,
+                ..default()
+            },
+            TextColor(SCORE_COLOR),
+        )],
+    ));
+    commands.spawn((
+        Text::new("High Score: "),
+        TextFont {
+            font_size: SCOREBOARD_FONT_SIZE,
+            ..default()
+        },
+        TextColor(TEXT_COLOR),
+        HighScoreUi,
+        Node {
+            position_type: PositionType::Absolute,
+            top: SCOREBOARD_TEXT_PADDING,
+            left: HIGH_SCORE_TEXT_PADDING,
+            ..default()
+        },
+        children![(
+            TextSpan::new("0"),
+            TextFont {
+                font_size: SCOREBOARD_FONT_SIZE,
+                ..default()
+            },
+            TextColor(SCORE_COLOR),
+        )],
+    ));
+    commands.insert_resource(PlayerScore{
+        current_score:0,
+        high_score:0
+    });
+}
 fn draw_snake_head(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -456,6 +533,33 @@ fn move_snake(
             y: -SNAKE_SPEED,
         };
     }
+
+    if keyboard_input.pressed(KeyCode::KeyA) {
+        snake_velocity.0 = Vec2 {
+            x: -SNAKE_SPEED,
+            y: 0.0,
+        };
+    }
+    if keyboard_input.pressed(KeyCode::KeyD) {
+        snake_velocity.0 = Vec2 {
+            x: SNAKE_SPEED,
+            y: 0.0,
+        };
+    }
+
+    if keyboard_input.pressed(KeyCode::KeyW) {
+        snake_velocity.0 = Vec2 {
+            x: 0.0,
+            y: SNAKE_SPEED,
+        };
+    }
+
+    if keyboard_input.pressed(KeyCode::KeyS) {
+        snake_velocity.0 = Vec2 {
+            x: 0.0,
+            y: -SNAKE_SPEED,
+        };
+    }
     if snake_velocity.0.length() == 0.0 {
         return;
     }
@@ -541,6 +645,9 @@ fn detect_start_collision_with_apple(
     apple: Single<Entity, With<Apple>>,
     mut commands: Commands,
     crunch_sound: Res<CrunchSound>,
+    score_root: Single<Entity, (With<ScoreboardUi>, With<Text>)>,
+    mut writer: TextUiWriter,
+    mut player_score: ResMut<PlayerScore>,
 ) {
     let apple = apple.entity();
     for event in collision_reader.read() {
@@ -548,6 +655,8 @@ fn detect_start_collision_with_apple(
             continue;
         }
         commands.spawn((AudioPlayer(crunch_sound.clone()), PlaybackSettings::DESPAWN));
+        player_score.current_score+=1;
+        *writer.text(*score_root, 1) = player_score.current_score.to_string();
     }
 }
 
@@ -607,6 +716,18 @@ fn game_over_screen(mut commands: Commands) {
 }
 fn reset_velocity(mut snake_velocity: ResMut<SnakeVelocity>) {
     snake_velocity.0 = Vec2 { x: 0.0, y: 0.0 };
+}
+fn reset_scores(
+    score_root: Single<Entity, (With<ScoreboardUi>, With<Text>)>,
+    high_score_root: Single<Entity, (With<HighScoreUi>, With<Text>)>,
+    mut writer: TextUiWriter,
+    mut player_score: ResMut<PlayerScore>,
+){
+    player_score.high_score=cmp::max(player_score.current_score, player_score.high_score);
+    player_score.current_score=0;
+    *writer.text(*score_root, 1) = player_score.current_score.to_string();
+    *writer.text(*high_score_root, 1) = player_score.high_score.to_string();
+
 }
 fn restart_game(
     snake_head: Single<Entity, With<HeadOfSnake>>,
