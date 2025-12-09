@@ -4,8 +4,8 @@ use avian2d::prelude::*;
 use bevy::{input_focus::InputFocus, prelude::*, window::PrimaryWindow};
 use rand::Rng;
 use snake::fabrik::{
-    HeadOfSnake, Joint, JointFilter, Limb, LimbFilter, LimbSegment, SNAKE_HEAD_LENGTH,
-    SNAKE_HEAD_THICKNESS,
+    HeadOfSnake, Joint, JointFilter, Limb, LimbFilter, LimbSegment, NO_OF_SNAKE_PARTS,
+    SNAKE_HEAD_LENGTH, SNAKE_HEAD_THICKNESS,
 };
 fn main() {
     App::new()
@@ -23,12 +23,21 @@ fn main() {
         ))
         .init_resource::<InputFocus>()
         .init_state::<GameState>()
-        .add_systems(OnEnter(GameState::Restart), (restart_game, reset_snake_position).chain())
-        .add_systems(OnEnter(GameState::GameOver), game_over_screen)
+        .add_systems(
+            OnEnter(GameState::Restart),
+            (restart_game, despawn_snake_parts, reset_snake_position).chain(),
+        )
+        .add_systems(
+            OnEnter(GameState::GameOver),
+            (game_over_screen, reset_velocity),
+        )
         .add_systems(Startup, (setup, draw_snake_head).chain())
         .add_systems(Startup, draw_boundaries)
         // .add_systems(Update, follow_mouse.run_if(in_state(GameState::Start).or(in_state(GameState::Restart))))
-        .add_systems(Update, move_snake.run_if(in_state(GameState::Start).or(in_state(GameState::Restart))))
+        .add_systems(
+            Update,
+            move_snake.run_if(in_state(GameState::Start).or(in_state(GameState::Restart))),
+        )
         .add_systems(Update, button_system.run_if(in_state(GameState::GameOver)))
         .add_systems(
             Update,
@@ -43,6 +52,8 @@ fn main() {
         .add_systems(Update, execute_animations)
         .run();
 }
+
+type SnakePartFilter = (With<LimbSegment>, Without<Joint>, Without<HeadOfSnake>);
 
 #[derive(Resource, Deref, DerefMut)]
 struct LimbResource(Limb);
@@ -128,12 +139,12 @@ enum GameState {
 
 const SNAKE_SPEED: f32 = 10.0;
 
-const NO_OF_SNAKE_PARTS: usize = 10;
 const WALL_HEIGHT: f32 = 600.0;
 const WALL_THICKNESS: f32 = 20.0;
 
 const FLOOR_THICKNESS: f32 = WALL_THICKNESS;
 const WALL_RIGHT_POSITION: f32 = 600.0;
+type TongueAndEyesFilter = Or<(With<Tongue>, With<Eye>)>;
 fn draw_snake_head(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -274,7 +285,7 @@ fn draw_snake_head(
 
 fn trigger_tounge_and_eyes_animation(
     mut tounge_and_eyes_animation_timer: ResMut<ToungeAndEyesAnimationTimer>,
-    tounge_and_eyes_query: Query<&mut AnimationTimer, Or<(With<Tongue>, With<Eye>)>>,
+    tounge_and_eyes_query: Query<&mut AnimationTimer, TongueAndEyesFilter>,
     time: Res<Time>,
 ) {
     tounge_and_eyes_animation_timer.tick(time.delta());
@@ -387,7 +398,7 @@ fn setup(
             image: asset_server.load("sprites/apple.png"),
             ..default()
         },
-        Transform::from_xyz(20.0, 50.0, 0.0),
+        Transform::from_xyz(20.0, 50.0, -10.0),
         RigidBody::Kinematic,
         Collider::circle(15.0),
         Sensor,
@@ -548,7 +559,6 @@ fn detect_start_collision_with_boundary(
     hit_sound: Res<HitSound>,
     hit_animation: Res<HitAnimationTextureAndAtlas>,
     mut game_state: ResMut<NextState<GameState>>,
-
 ) {
     for event in collision_reader.read() {
         if boundary.get(event.collider1).is_err() && boundary.get(event.collider2).is_err() {
@@ -575,8 +585,6 @@ fn detect_start_collision_with_boundary(
             .add_child(animation_entity);
 
         game_state.set(GameState::GameOver);
-
-        
     }
 }
 
@@ -595,9 +603,10 @@ fn detect_start_collision_with_apple_field(
 }
 
 fn game_over_screen(mut commands: Commands) {
-    commands.spawn(button()
-
-);
+    commands.spawn(button());
+}
+fn reset_velocity(mut snake_velocity: ResMut<SnakeVelocity>) {
+    snake_velocity.0 = Vec2 { x: 0.0, y: 0.0 };
 }
 fn restart_game(
     snake_head: Single<Entity, With<HeadOfSnake>>,
@@ -678,16 +687,35 @@ fn restart_game(
     limb_resource.reset_limb(Vec2 {
         x: 200.0,
         y: -100.0,
-    });
+    })
+}
+
+fn despawn_snake_parts(
+    joint_query: Query<(Entity, &Joint), JointFilter>,
+    limb_query: Query<(Entity, &LimbSegment), SnakePartFilter>,
+    mut snake_head: Single<&mut LimbSegment, With<HeadOfSnake>>,
+    mut commands: Commands,
+) {
+    for (entity, joint_index) in joint_query {
+        if joint_index.0 >= NO_OF_SNAKE_PARTS {
+            commands.entity(entity).despawn();
+        }
+    }
+
+    for (entity, limb_index) in limb_query {
+        if limb_index.0 >= NO_OF_SNAKE_PARTS - 1 {
+            commands.entity(entity).despawn();
+        }
+    }
+    snake_head.0 = NO_OF_SNAKE_PARTS - 2;
 }
 
 fn reset_snake_position(
     joint_query: Query<(&mut Transform, &Joint), JointFilter>,
     limb_query: Query<(&mut Transform, &LimbSegment), LimbFilter>,
-    limb_resource: Res<LimbResource>
-
-){
-    limb_resource.update_visuals(joint_query,limb_query);
+    limb_resource: Res<LimbResource>,
+) {
+    limb_resource.update_visuals(joint_query, limb_query);
 }
 
 fn button() -> impl Bundle {
@@ -703,7 +731,7 @@ fn button() -> impl Bundle {
         children![(
             Button,
             Node {
-                width: px(150),
+                width: px(200),
                 height: px(65),
                 border: UiRect::all(px(5)),
                 // horizontally center child text
@@ -728,23 +756,12 @@ fn button() -> impl Bundle {
     )
 }
 
-
 fn button_system(
     mut input_focus: ResMut<InputFocus>,
-    mut interaction_query: Query<
-        (
-            Entity,
-            &Interaction,
-            &mut Button,
-        ),
-        Changed<Interaction>,
-    >,
+    mut interaction_query: Query<(Entity, &Interaction, &mut Button), Changed<Interaction>>,
     mut game_state: ResMut<NextState<GameState>>,
 ) {
-    for (entity, interaction, mut button) in
-        &mut interaction_query
-    {
-
+    for (entity, interaction, mut button) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 input_focus.set(entity);

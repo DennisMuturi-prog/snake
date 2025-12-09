@@ -9,6 +9,8 @@ pub struct Joint(pub usize);
 pub type JointFilter = (With<Joint>, Without<LimbSegment>);
 
 pub type LimbFilter = (With<LimbSegment>, Without<Joint>);
+pub const NO_OF_SNAKE_PARTS: usize = 10;
+
 
 const SNAKE_PART_LENGTH: f32 = 20.0;
 
@@ -268,6 +270,7 @@ impl Limb {
             .push_front(Segment::new(new_point, SNAKE_PART_LENGTH));
     }
     pub fn reset_limb(&mut self,starting_position:Vec2){
+        self.segments.truncate(NO_OF_SNAKE_PARTS);
         let mut sum = 0.0;
         let no_of_segments=self.segments.len();
 
