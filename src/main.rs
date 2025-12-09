@@ -19,7 +19,7 @@ fn main() {
                 ..default()
             }),
             PhysicsPlugins::default(),
-            PhysicsDebugPlugin,
+            // PhysicsDebugPlugin,
         ))
         .init_resource::<InputFocus>()
         .init_state::<GameState>()
@@ -152,7 +152,7 @@ enum GameState {
     GameOver,
 }
 
-const SNAKE_SPEED: f32 = 625.0;
+const SNAKE_SPEED: f32 = 625.0/2.0;
 
 const WALL_HEIGHT: f32 = 600.0;
 const WALL_THICKNESS: f32 = 20.0;
