@@ -152,7 +152,7 @@ enum GameState {
     GameOver,
 }
 
-const SNAKE_SPEED: f32 = 10.0;
+const SNAKE_SPEED: f32 = 625.0;
 
 const WALL_HEIGHT: f32 = 600.0;
 const WALL_THICKNESS: f32 = 20.0;
@@ -479,7 +479,7 @@ fn setup(
 
     commands.insert_resource(SnakeVelocity(Vec2 {
         x: 0.0,
-        y: SNAKE_SPEED - 10.0,
+        y: 0.0,
     }));
 
     commands.spawn((
@@ -523,16 +523,17 @@ fn move_snake(
     limb_query: Query<(&mut Transform, &LimbSegment), LimbFilter>,
     mut limb_resource: ResMut<LimbResource>,
     mut snake_velocity: ResMut<SnakeVelocity>,
+    time:Res<Time>
 ) {
     if keyboard_input.pressed(KeyCode::ArrowLeft) {
         snake_velocity.0 = Vec2 {
-            x: -SNAKE_SPEED,
+            x: -SNAKE_SPEED*time.delta_secs(),
             y: 0.0,
         };
     }
     if keyboard_input.pressed(KeyCode::ArrowRight) {
         snake_velocity.0 = Vec2 {
-            x: SNAKE_SPEED,
+            x: SNAKE_SPEED*time.delta_secs(),
             y: 0.0,
         };
     }
@@ -540,26 +541,26 @@ fn move_snake(
     if keyboard_input.pressed(KeyCode::ArrowUp) {
         snake_velocity.0 = Vec2 {
             x: 0.0,
-            y: SNAKE_SPEED,
+            y: SNAKE_SPEED*time.delta_secs(),
         };
     }
 
     if keyboard_input.pressed(KeyCode::ArrowDown) {
         snake_velocity.0 = Vec2 {
             x: 0.0,
-            y: -SNAKE_SPEED,
+            y: -SNAKE_SPEED*time.delta_secs(),
         };
     }
 
     if keyboard_input.pressed(KeyCode::KeyA) {
         snake_velocity.0 = Vec2 {
-            x: -SNAKE_SPEED,
+            x: -SNAKE_SPEED*time.delta_secs(),
             y: 0.0,
         };
     }
     if keyboard_input.pressed(KeyCode::KeyD) {
         snake_velocity.0 = Vec2 {
-            x: SNAKE_SPEED,
+            x: SNAKE_SPEED*time.delta_secs(),
             y: 0.0,
         };
     }
@@ -567,14 +568,14 @@ fn move_snake(
     if keyboard_input.pressed(KeyCode::KeyW) {
         snake_velocity.0 = Vec2 {
             x: 0.0,
-            y: SNAKE_SPEED,
+            y: SNAKE_SPEED*time.delta_secs(),
         };
     }
 
     if keyboard_input.pressed(KeyCode::KeyS) {
         snake_velocity.0 = Vec2 {
             x: 0.0,
-            y: -SNAKE_SPEED,
+            y: -SNAKE_SPEED*time.delta_secs(),
         };
     }
     if snake_velocity.0.length() == 0.0 {
@@ -727,8 +728,7 @@ fn detect_start_collision_with_snake_parts(
         if snake_parts.get(event.collider1).is_err() && snake_parts.get(event.collider2).is_err() {
             continue;
         }
-        // if (snake_parts.get(event.collider1).is_ok() && event.collider2==snake_head.entity()) ||  {
-        println!("collision happened");
+        
         commands.spawn((AudioPlayer(hit_sound.clone()), PlaybackSettings::DESPAWN));
         let hit_bundle = (
             Sprite {
@@ -750,7 +750,6 @@ fn detect_start_collision_with_snake_parts(
             .add_child(animation_entity);
 
         game_state.set(GameState::GameOver);
-        // }
     }
 }
 
